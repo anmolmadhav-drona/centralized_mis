@@ -1,0 +1,248 @@
+// NPL MIS Portal — Prisma schema (PostgreSQL)
+// Portable by design: no PostgreSQL-specific column types in models; raw SQL
+// helpers in src/lib/db.ts keep `?` placeholders portable.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// USERS & RBAC
+// ============================================================
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("USER") // ADMIN | MANAGER | USER | VIEWER
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([role])
+
+  passwordResets PasswordResetToken[]
+}
+
+// ============================================================
+// PASSWORD RESET TOKENS (single-use, expiring, hashed at rest)
+// ============================================================
+// The raw token exists ONLY in the reset email link. The database stores a
+// SHA-256 hash — a database leak cannot be used to reset any password.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique // sha-256 hex of the raw token
+  expiresAt DateTime // creation + 30 minutes
+  usedAt    DateTime? // set when consumed — single use
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ============================================================
+// MIS FIELD REGISTRY (core + dynamic columns)
+// ============================================================
+model MisField {
+  id          String   @id @default(cuid())
+  fieldKey    String   @unique // machine key (core: matches prisma column / dynamic: slug)
+  fieldName   String   @unique // EXACT Excel header — import/export fidelity
+  displayName String // clean portal label
+  dataType    String // TEXT | LONG_TEXT | INTEGER | DECIMAL | DATE | DATETIME | BOOLEAN | DROPDOWN
+  required    Boolean  @default(false)
+  defaultValue String?
+  options     String? // JSON string array — DROPDOWN choices
+  position    Int      @default(0)
+  isCore      Boolean  @default(false) // original workbook columns — not deletable
+  isSystem    Boolean  @default(false) // e.g. SR. NO. — generated, never stored
+  active      Boolean  @default(true)
+  width       Float? // Excel column width
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  values      MisValue[]
+
+  @@index([position])
+  @@index([active])
+}
+
+// ============================================================
+// MIS RECORDS — core fields as typed columns (fast, indexed)
+// ============================================================
+model MisRecord {
+  id        String    @id @default(cuid())
+  version   Int       @default(1) // optimistic concurrency token
+
+  // --- core MIS columns (exact workbook semantics) ---
+  pickupLocation         String?
+  partyName              String?
+  destination            String?
+  invoiceNumber          String? // TEXT: mixed str/int in Excel
+  lrNo                   Int?
+  lrDate                 DateTime?
+  routeCode              String?
+  materialDetails        String?
+  transporterName        String?
+  bucket                 Int?
+  totalQuantityLtrs      Int?
+  loadType               String?
+  expectedDeliveryDate   DateTime?
+  actualDeliveryDate     DateTime?
+  deliveryStatus         String?
+  lrStatus               String?
+  damage                 String?
+  loadingCharges         Float?
+  unloadingCharges       Float?
+  vehicleNumber          String?
+  vehicleType            Int?
+  ply                    Int?
+  remark                 String? // Excel: "Remark" (legacy workbooks spelled it "Remarsk")
+  remarks1               String?
+  dispatchDate           DateTime?
+  dispatchFrom           String? // latest workbook: "DispatchFrom"
+  dispatchVehicle        String?
+  vendorName             String?
+  routeCode2             String?
+  podStatus              String?
+  vehicleRate            Float? // latest workbook: "Vehicle Rate" (management-sensitive)
+  km                     Float? // latest workbook: "KM"
+  rate                   Float? // latest workbook: "Rate"
+  totalRate              Float? // latest workbook: "Total Rate"
+
+  // --- composite business identity (Excel-import duplicate prevention) ---
+  // businessKey = normalized "LR No. | Invoice Number | Party Name" — the
+  //   shipment identity used for duplicate detection and upsert matching.
+  // lineKey = normalized "Material | Bucket | Qty" — PTL shipments legitimately
+  //   carry multiple lines under one business key, so the line discriminator
+  //   is what makes each stored record unique (UNIQUE constraint is on the pair).
+  // NULL businessKey = record without complete identity (legacy / portal-made
+  // without the three fields) — exempt from the constraint (SQL NULLs are distinct).
+  businessKey            String?
+  lineKey                String?
+
+  // --- delivery tracking (synced by the delivery service from shipment data) ---
+  trackingId         String? // shipment / tracking reference (defaults to LR-<lrNo>, user-overridable)
+  liveStatus         String? // canonical delivery status synced from POD / dates / dispatch signals
+  lastStatusUpdate   DateTime?
+
+  // --- dynamic field values (EAV) ---
+  values    MisValue[]
+
+  // --- cell formulas (Excel-style, evaluated & cached) ---
+  formulas  MisFormula[]
+
+  // --- metadata ---
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime? // soft delete
+
+  @@unique([businessKey, lineKey])
+  @@index([lrNo])
+  @@index([partyName])
+  @@index([destination])
+  @@index([deliveryStatus])
+  @@index([lrDate])
+  @@index([dispatchDate])
+  @@index([vendorName])
+  @@index([podStatus])
+  @@index([loadType])
+  @@index([liveStatus])
+  @@index([trackingId])
+  @@index([updatedAt])
+  @@index([deletedAt])
+}
+
+// ============================================================
+// CELL FORMULAS (Excel-style spreadsheet engine)
+// ============================================================
+model MisFormula {
+  id          String   @id @default(cuid())
+  recordId    String
+  fieldKey    String // field registry key of the cell's column
+  formula     String // raw user text starting with '='
+  cachedValue String? // JSON: { ok: true, v: number|string|boolean } | { ok: false, e: { code, message } }
+  createdBy   String?
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  record      MisRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@unique([recordId, fieldKey])
+  @@index([fieldKey])
+}
+
+// ============================================================
+// DYNAMIC FIELD VALUES (EAV, typed storage)
+// ============================================================
+model MisValue {
+  id         String    @id @default(cuid())
+  recordId   String
+  fieldId    String
+  valueText  String?
+  valueNumber Float?
+  valueDate  DateTime?
+  valueBool  Boolean?
+  record     MisRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  field      MisField  @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([recordId, fieldId])
+  @@index([fieldId, valueText])
+  @@index([fieldId, valueNumber])
+  @@index([fieldId, valueDate])
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  userName  String?
+  action    String // RECORD_CREATE | RECORD_UPDATE | RECORD_DELETE | FIELD_ADD | FIELD_UPDATE | FIELD_DELETE | IMPORT | EXPORT | LOGIN | LOGIN_FAILED | USER_CREATE | USER_UPDATE | CALC? no
+  entity    String // RECORD | FIELD | IMPORT | EXPORT | USER | AUTH
+  entityId  String?
+  fieldName String?
+  oldValue  String? // JSON-encoded
+  newValue  String? // JSON-encoded
+  source    String // PORTAL | EXCEL | API
+  ip        String?
+  userAgent String?
+  requestId String? // correlation ID assigned by the API middleware
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([entity])
+  @@index([action])
+  @@index([requestId])
+}
+
+// ============================================================
+// IMPORT JOBS (preview → confirm workflow)
+// ============================================================
+model ImportJob {
+  id          String    @id @default(cuid())
+  userId      String
+  userName    String?
+  fileName    String
+  status      String // PREVIEW | CONFIRMED | CANCELLED
+  stats       String? // JSON summary counts
+  payload     String? // JSON: parsed rows + analysis snapshot for confirm step
+  createdAt   DateTime  @default(now())
+  confirmedAt DateTime?
+  result      String? // JSON: apply outcome
+
+  @@index([createdAt])
+}

@@ -1,0 +1,64 @@
+# Keep the Docker build context minimal — no secrets, databases, logs, or
+# development artifacts enter the image.
+
+# --- version control / metadata ---
+.git
+.gitignore
+.gitattributes
+
+# --- dependencies (installed inside the image) ---
+node_modules
+**/node_modules
+mini-services/realtime/node_modules
+
+# --- build outputs ---
+.next
+out
+build
+*.tsbuildinfo
+next-env.d.ts
+
+# --- environment & secrets (NEVER bake into images) ---
+.env
+.env.*
+!.env.example
+
+# --- databases & backups (production DB is an external PostgreSQL) ---
+db
+*.db
+*.db-*
+prisma/schema.sqlite.bak.prisma
+
+# --- development / testing artifacts ---
+scripts
+!scripts/create-admin.mjs
+!scripts/preflight-prod.mjs
+!scripts/prepare-standalone.mjs
+tests
+examples
+download
+screenshots
+tool-results
+upload
+skills
+.zscripts
+.z-ai-config
+docs
+worklog.md
+keepalive.log
+server.log
+dev.log
+dev.out.log
+*.log
+
+# --- local tooling / editor ---
+.claude
+.vscode
+.idea
+.DS_Store
+Caddyfile
+
+# --- misc ---
+README.md
+prompt
+test

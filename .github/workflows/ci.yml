@@ -1,0 +1,91 @@
+# CI — NPL MIS Portal
+#
+# Validates exactly what can be validated without external services:
+#   dependency install (frozen lockfile) → Prisma generate → TypeScript →
+#   ESLint → unit tests (business-key + formula) → migrations applied to a
+#   real PostgreSQL service → production build.
+#
+# Deliberately NOT in CI: AWS/S3 (app never uses it), Coolify, SMTP,
+# browser E2E (requires a running server — run `bun run test:e2e` locally),
+# and no secrets of any kind.
+#
+# The full server-dependent suites (61 API e2e + 50 import e2e + 12
+# password-reset e2e checks) are executed against a production build in the
+# development workspace — see docs/local-development.md → Daily commands.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Install · Generate · Typecheck · Lint · Unit tests · Migrate · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: npl
+          POSTGRES_PASSWORD: npl_ci_password
+          POSTGRES_DB: npl_mis
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U npl -d npl_mis"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://npl:npl_ci_password@localhost:5432/npl_mis
+      NEXT_TELEMETRY_DISABLED: '1'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies (frozen lockfile)
+        run: bun install --frozen-lockfile
+
+      - name: Prisma generate
+        run: bun run db:generate
+
+      - name: Typecheck (src)
+        run: bun run typecheck
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Unit tests — business identity (46 checks)
+        run: bun run test
+
+      - name: Unit tests — formula engine (42 checks)
+        run: bun run test:formula
+
+      - name: Apply migrations (validates PostgreSQL compatibility)
+        run: bun run db:deploy
+
+      - name: Production build
+        run: bun run build
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-failure-logs
+          path: |
+            .next/*.log
+          if-no-files-found: ignore
+          retention-days: 7

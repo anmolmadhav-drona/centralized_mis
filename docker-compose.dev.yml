@@ -1,0 +1,85 @@
+# ============================================================================
+# NPL MIS Portal — LOCAL DEVELOPMENT stack (NOT for production).
+#
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# Provides the two infrastructure dependencies so a developer can run the
+# Next.js app normally on the host:
+#
+#   • postgres : PostgreSQL 17 (matches production major version) with a
+#                NAMED VOLUME — data survives restarts, lives OUTSIDE the
+#                repository, and is wiped only by an explicit
+#                `docker compose -f docker-compose.dev.yml down -v`.
+#   • realtime : the Socket.IO realtime service (mini-services/realtime),
+#                built from its production Dockerfile with development
+#                settings. Public Socket.IO on localhost:3003; the internal
+#                /emit endpoint on localhost:3004 (bound to the host's
+#                loopback only — the host-run Next.js app posts there).
+#
+# The web app itself is NOT containerized here — run it with:
+#   bun run dev          (http://localhost:3000)
+#
+# .env for local development against this stack:
+#   DATABASE_URL=postgresql://npl:npl_dev_password@127.0.0.1:5432/npl_mis
+#   AUTH_SECRET=<openssl rand -base64 32>
+#   REALTIME_SECRET=<openssl rand -hex 24>
+#   REALTIME_URL=http://127.0.0.1:3004
+#   REALTIME_PUBLIC_URL=http://localhost:3003
+#
+# Then: bun run db:deploy && bun run db:seed   (first time only)
+# ============================================================================
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: npl-mis-postgres-dev
+    environment:
+      POSTGRES_USER: npl
+      POSTGRES_PASSWORD: npl_dev_password # local development only — never production
+      POSTGRES_DB: npl_mis
+    ports:
+      - "127.0.0.1:5433:5432" # host loopback only — not exposed to the network
+    volumes:
+      - npl_pgdata_dev:/var/lib/postgresql/data # named volume (outside the repo)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U npl -d npl_mis"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  realtime:
+    build:
+      context: . # repo root — the Dockerfile COPYs mini-services/realtime/*
+      dockerfile: mini-services/realtime/Dockerfile
+    container_name: npl-mis-realtime-dev
+    environment:
+      NODE_ENV: development
+      REALTIME_PORT: "3003"
+      REALTIME_ADMIN_PORT: "3004"
+      # Inside the container the admin endpoint must bind 0.0.0.0 so the
+      # host-run web app can reach it via the published port. The published
+      # port below is bound to the HOST's loopback only.
+      REALTIME_ADMIN_BIND: 0.0.0.0
+      # Honour a locally generated REALTIME_SECRET from .env (setup:local
+      # writes one; Compose substitutes from the project's .env) with the
+      # shared development default as fallback — the web app's .env and the
+      # service then share the same value automatically.
+      REALTIME_SECRET: ${REALTIME_SECRET:-dev-realtime-secret-change-me}
+      # Development mode reflects the request origin; set an explicit
+      # allowlist to mirror production behaviour.
+      REALTIME_ALLOWED_ORIGIN: ${REALTIME_ALLOWED_ORIGIN:-http://localhost:3000}
+    ports:
+      - "127.0.0.1:3003:3003" # public Socket.IO (host loopback)
+      - "127.0.0.1:3004:3004" # internal /emit endpoint (host loopback)
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bun -e \"fetch('http://127.0.0.1:3004/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  npl_pgdata_dev:

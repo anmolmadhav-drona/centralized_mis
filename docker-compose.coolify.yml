@@ -66,3 +66,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+
+    networks:
+      - default
+      - coolify
+
+networks:
+  coolify:
+    external: true

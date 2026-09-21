@@ -59,6 +59,7 @@ export default function MisView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [searchEpoch, setSearchEpoch] = useState(0)
   const [total, setTotal] = useState(0)
+  const [columnVisibilityVersion, setColumnVisibilityVersion] = useState(0)
   const [selectionCount, setSelectionCount] = useState(0)
   const [filterModel, setFilterModel] = useState<Record<string, Record<string, unknown>>>({})
   const [saveState, setSaveState] = useState<SaveState>('idle')
@@ -318,7 +319,11 @@ export default function MisView() {
   // column visibility
   // ------------------------------------------------------------------
   const toggleColumn = (colId: string, visible: boolean) => {
-    gridApiRef.current?.setColumnsVisible([colId], visible)
+    const api = gridApiRef.current
+    if (!api) return
+
+    api.setColumnsVisible([colId], visible)
+    setColumnVisibilityVersion((version) => version + 1)
   }
   const columnList = useMemo(() => {
     const api = gridApiRef.current
@@ -329,7 +334,7 @@ export default function MisView() {
       // not user data columns and cannot be meaningfully toggled
       .filter((c) => !c.colId.startsWith('ag-Grid-'))
       .map((c) => ({ colId: c.colId, visible: !c.hide }))
-  }, [total])
+  }, [total, columnVisibilityVersion])
   const displayNameOf = (colId: string) => fields.find((f) => f.fieldKey === colId)?.displayName
     || (colId === 'srNo' ? 'Sr. No.' : colId === 'updatedAt' ? 'Last Updated' : colId === 'updatedBy' ? 'Updated By' : colId)
 

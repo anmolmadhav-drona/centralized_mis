@@ -47,6 +47,11 @@ type SettingsTab = 'fields' | 'users'
 export default function SettingsView() {
   const [tab, setTab] = useState<SettingsTab>('fields')
   const user = useAppStore((s) => s.user)
+
+  if (!user || !can(user.role, 'settings:view' as never)) {
+    return null
+  }
+
   const isFieldAdmin = user ? can(user.role, 'fields:manage' as never) : false
   const isUserAdmin = user ? can(user.role, 'users:manage' as never) : false
 

@@ -4,7 +4,7 @@ import { route, requirePermission } from '@/lib/api'
 import type { DashboardData } from '@/lib/types'
 
 export const GET = route(async (_req: NextRequest) => {
-  await requirePermission('records:view')
+  await requirePermission('dashboard:view')
   const notDeleted = { deletedAt: null }
 
   // IST day/month boundaries (the operating timezone of the business)

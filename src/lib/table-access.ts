@@ -58,6 +58,30 @@ export const RESTRICTED_TABLES: readonly RestrictedTable[] = [
     allowedRoles: ['ADMIN', 'MANAGER'],
     reason: 'Loading charges are management-sensitive financial data.',
   },
+  {
+    fieldKey: 'unloadingCharges',
+    tableName: 'Unloading Charges',
+    excelHeaders: ['UNLOADING CHARGES'],
+    view: 'Centralized MIS',
+    allowedRoles: ['ADMIN', 'MANAGER'],
+    reason: 'Unloading charges are management-sensitive financial data.',
+  },
+  {
+    fieldKey: 'rate',
+    tableName: 'Rate',
+    excelHeaders: ['Rate'],
+    view: 'Centralized MIS',
+    allowedRoles: ['ADMIN', 'MANAGER'],
+    reason: 'Rates are management-sensitive financial data.',
+  },
+  {
+    fieldKey: 'totalRate',
+    tableName: 'Total Rate',
+    excelHeaders: ['Total Rate'],
+    view: 'Centralized MIS',
+    allowedRoles: ['ADMIN', 'MANAGER'],
+    reason: 'Total rates are management-sensitive financial data.',
+  },
 ]
 
 const BY_FIELD_KEY = new Map(RESTRICTED_TABLES.map((t) => [t.fieldKey, t]))

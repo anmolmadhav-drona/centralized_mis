@@ -42,7 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Overview',
     items: [
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'records:view' },
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard:view' },
     ],
   },
   {
@@ -143,9 +143,17 @@ export default function AppShell() {
   // redirect view if permission revoked (e.g. role change)
   useEffect(() => {
     if (!user) return
+
     const item = ALL_NAV.find((n) => n.id === view)
+
     if (item && !can(user.role, item.permission as never)) {
-      setView('dashboard')
+      const fallback = ALL_NAV.find((nav) =>
+        can(user.role, nav.permission as never),
+      )?.id
+
+      if (fallback) {
+        setView(fallback)
+      }
     }
   }, [user, view, setView])
 
@@ -530,9 +538,11 @@ export default function AppShell() {
                     </p>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setView('settings')}>
-                    <Settings2 className="h-4 w-4" /> Users & Settings
-                  </DropdownMenuItem>
+                  {can(user.role, 'settings:view') && (
+                    <DropdownMenuItem onClick={() => setView('settings')}>
+                      <Settings2 className="h-4 w-4" /> Users & Settings
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={toggleCalculator}>
                     <Calculator className="h-4 w-4" /> Calculator
                   </DropdownMenuItem>

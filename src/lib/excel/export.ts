@@ -17,8 +17,6 @@ const BAND_FILL = 'FFEFF6FC'
 const BORDER = 'FFD9D9D9'
 const SYS_FILL = 'FFF2F2F2'
 
-export const SYS_ID_HEADER = 'SYS_RECORD_ID'
-export const SYS_VERSION_HEADER = 'SYS_VERSION'
 
 export interface ExportParams {
   fields: FieldDef[]
@@ -64,7 +62,12 @@ export async function buildExportWorkbook(params: ExportParams): Promise<ExcelJS
   // Sheet 1 — MIS
   // ==========================================================
   const ws = wb.addWorksheet('MIS', {
-    views: [{ state: 'frozen', ySplit: 2 }],
+    views: [{
+      state: 'frozen',
+      ySplit: 2,
+      topLeftCell: 'A3',
+      activeCell: 'A3',
+    }],
     // exceljs runtime supports sheetFormat (default row height) but its
     // typings omit it — spread through an untyped escape hatch
     ...({ sheetFormat: { defaultRowHeight: 16 } } as Record<string, unknown> as object),
@@ -88,28 +91,46 @@ export async function buildExportWorkbook(params: ExportParams): Promise<ExcelJS
   const headerRow = ws.getRow(2)
   dataFields.forEach((f, i) => {
     const cell = headerRow.getCell(i + 1)
-    cell.value = f.fieldName // EXACT Excel header name
-    cell.font = { bold: true, color: { argb: HEADER_TEXT }, size: 10 }
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_FILL } }
+
+    // Prefer the original Excel header, but never export a blank header.
+    const headerText =
+      String(f.fieldName ?? '').trim() ||
+      String(f.displayName ?? '').trim() ||
+      String(f.fieldKey ?? '').trim()
+
+    cell.value = headerText
+
+    cell.font = {
+      bold: true,
+      color: { argb: HEADER_TEXT },
+      size: 10,
+    }
+
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: HEADER_FILL },
+    }
+
     cell.border = thinBorder()
-    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
-    ws.getColumn(i + 1).width = Math.min(40, Math.max(10, f.width || 18))
+
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: 'center',
+      wrapText: true,
+    }
+
+    // Respect the configured field width, but make sure long headers
+    // have enough room to render properly.
+    const configuredWidth = Number(f.width) || 18
+    const headerWidth = Math.ceil(headerText.length * 0.9) + 4
+
+    ws.getColumn(i + 1).width = Math.min(
+      40,
+      Math.max(10, configuredWidth, headerWidth),
+    )
   })
-  // trailing system columns
-  const sysIdCol = totalCols + 1
-  const sysVerCol = totalCols + 2
-  headerRow.getCell(sysIdCol).value = SYS_ID_HEADER
-  headerRow.getCell(sysVerCol).value = SYS_VERSION_HEADER
-  for (const c of [sysIdCol, sysVerCol]) {
-    const cell = headerRow.getCell(c)
-    cell.font = { bold: true, italic: true, color: { argb: 'FF7F7F7F' }, size: 9 }
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: SYS_FILL } }
-    cell.border = thinBorder()
-    cell.alignment = { vertical: 'middle', horizontal: 'center' }
-  }
-  ws.getColumn(sysIdCol).width = 26
-  ws.getColumn(sysVerCol).width = 12
-  headerRow.height = 28
+  headerRow.height = 36
 
   // --- data rows ---
   const dateNumFmt = 'mm-dd-yy'
@@ -166,13 +187,6 @@ export async function buildExportWorkbook(params: ExportParams): Promise<ExcelJS
       }
       cell.border = thinBorder()
     })
-    row.getCell(sysIdCol).value = rec.id
-    row.getCell(sysVerCol).value = rec.version
-    for (const c of [sysIdCol, sysVerCol]) {
-      const cell = row.getCell(c)
-      cell.font = { size: 8, color: { argb: 'FF9A9A9A' }, italic: true }
-      if (ri % 2 === 1) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F0F6' } }
-    }
     row.height = 16
   })
 
@@ -180,7 +194,7 @@ export async function buildExportWorkbook(params: ExportParams): Promise<ExcelJS
   if (records.length > 0) {
     ws.autoFilter = {
       from: { row: 2, column: 1 },
-      to: { row: 2 + records.length, column: sysVerCol },
+      to: { row: 2 + records.length, column: totalCols },
     }
   }
 
@@ -188,7 +202,14 @@ export async function buildExportWorkbook(params: ExportParams): Promise<ExcelJS
   // Sheet 2 — Summary (LIVE pivot, never stale)
   // ==========================================================
   if (params.includeSummary) {
-    const sum = wb.addWorksheet('Summary', { views: [{ state: 'frozen', ySplit: 2 }] })
+    const sum = wb.addWorksheet('Summary', {
+      views: [{
+        state: 'frozen',
+        ySplit: 2,
+        topLeftCell: 'A3',
+        activeCell: 'A3',
+      }],
+    })
 
     // group by party → destination → LR No
     const groups = new Map<string, Map<string, Map<number, { qty: number; byRemark: Map<string, number> }>>>()

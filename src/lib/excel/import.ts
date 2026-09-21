@@ -8,7 +8,8 @@ import { getFieldMapForRole } from '@/lib/services/fields'
 import { coerceValue, importValuesEqual, type StoredValue } from '@/lib/services/values'
 import { computeRecordKeys } from '@/lib/services/business-key'
 import { DERIVED_FIELD_KEYS } from '@/lib/services/delivery'
-import { SYS_ID_HEADER, SYS_VERSION_HEADER } from '@/lib/excel/export'
+const SYS_ID_HEADER = 'SYS_RECORD_ID'
+const SYS_VERSION_HEADER = 'SYS_VERSION'
 
 // Import size safety (documented limits — see docs/coolify-deployment.md):
 //   • file size    : 10 MB

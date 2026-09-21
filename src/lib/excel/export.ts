@@ -10,7 +10,6 @@ import ExcelJS from 'exceljs'
 import type { FieldDef, MisRecordDto, SortItem, AgFilterModel } from '@/lib/types'
 import { listRecords } from '@/lib/services/records-query'
 import { TYPE_TRAITS } from '@/lib/services/fields'
-import { compileFormula, astToA1 } from '@/lib/formula'
 
 const HEADER_FILL = 'FF9FC5E8' // company workbook header fill
 const HEADER_TEXT = 'FF240B55' // company workbook header text
@@ -56,21 +55,6 @@ export async function buildExportWorkbook(params: ExportParams): Promise<ExcelJS
   // include ALL active fields in registry order (SR. NO. regenerated as 1..N)
   const dataFields = fields
   const records = await fetchAllMatching(params)
-
-  // ---- formula translation context (column-name refs → same-row A1 refs) ----
-  const colIndexOf = new Map(dataFields.map((f, i) => [f.fieldKey, i + 1]))
-  const translateFormula = (text: string, sheetRow: number): string | null => {
-    try {
-      const compiled = compileFormula(text, dataFields)
-      return astToA1(compiled.ast, {
-        columnIndexOf: (k) => colIndexOf.get(k) ?? null,
-        sheetRow,
-        a1RowOffset: 2, // grid row 1 → sheet row 3 (TOTAL row 1, header row 2)
-      })
-    } catch {
-      return null // keep the cached value when the formula can't be translated
-    }
-  }
 
   const wb = new ExcelJS.Workbook()
   wb.creator = 'NPL MIS Portal'
@@ -165,14 +149,9 @@ export async function buildExportWorkbook(params: ExportParams): Promise<ExcelJS
       // ---- formula cell? write the live Excel formula + cached result ----
       const formulaText = rec._formulas?.[f.fieldKey]
       if (formulaText && !f.isSystem) {
-        const translated = translateFormula(formulaText, 3 + ri)
-        if (translated) {
-          const cached = v instanceof Date && isNaN(v.getTime()) ? undefined : (v as number | string | boolean | Date | null ?? undefined)
-          cell.value = { formula: translated, ...(cached !== null && cached !== undefined ? { result: cached } : {}) }
-        } else if (v !== null && v !== undefined) {
-          cell.value = v
-        }
-      } else if (v !== null && v !== undefined && !(v instanceof Date && isNaN(v.getTime()))) {
+        // Export the calculated value only — never export the Excel formula.
+        cell.value = v !== null && v !== undefined ? v : null
+      } else if (v !== null && v !== undefined) {
         cell.value = v
       }
       if (TYPE_TRAITS[f.dataType].date) {

@@ -34,6 +34,7 @@ scripts
 !scripts/create-admin.mjs
 !scripts/preflight-prod.mjs
 !scripts/prepare-standalone.mjs
+!scripts/migrate-mis-field-registry.ts
 tests
 examples
 download

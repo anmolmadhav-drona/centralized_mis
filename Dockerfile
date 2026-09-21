@@ -84,6 +84,9 @@ COPY --from=build --chown=nextjs:nodejs /app/scripts/create-admin.mjs ./scripts/
 #   node scripts/preflight-prod.mjs
 COPY --from=build --chown=nextjs:nodejs /app/scripts/preflight-prod.mjs ./scripts/preflight-prod.mjs
 
+# Production-safe MIS field registry migration
+COPY --from=build --chown=nextjs:nodejs /app/scripts/migrate-mis-field-registry.ts ./scripts/migrate-mis-field-registry.ts
+
 COPY --chown=nextjs:nodejs docker/entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 

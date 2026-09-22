@@ -78,11 +78,17 @@ runStep(
   ["scripts/formula-test.ts"],
   bunExecutable,
 );
+runStep(
+  "Unit tests — delivery-status normaliser",
+  "bun",
+  ["scripts/delivery-status-test.ts"],
+  bunExecutable,
+);
 runStep("Production build (next build)", "bun", ["run", "build"], bunExecutable);
 
 console.log("\nVerification summary");
 console.log("  TypeScript   : ok");
 console.log("  ESLint       : ok");
-console.log("  Unit tests   : 46 business-key + 42 formula checks ok");
+console.log("  Unit tests   : 46 business-key + 42 formula + delivery-status normalizer checks ok");
 console.log("  Build        : production standalone ok");
-console.log("  ALL CHECKS PASSED");
+console.log("  ALL CHECKS PASSED");

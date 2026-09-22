@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db, rawQuery } from '@/lib/db'
 import { route, requirePermission } from '@/lib/api'
 import type { DashboardData } from '@/lib/types'
+import { getFields } from '@/lib/services/fields'
+import { normalizeStatus } from '@/lib/services/status-normalizer'
 
 export const GET = route(async (_req: NextRequest) => {
   await requirePermission('dashboard:view')
@@ -17,7 +19,7 @@ export const GET = route(async (_req: NextRequest) => {
   const [
     totalRecords, qtyAgg, loadGroups, statusGroups, podGroups,
     todayEntries, monthEntries, vendorGroups,
-    onTimeRow, trendRows, pendingRows,
+    onTimeRow, trendRows, pendingRows, fields,
   ] = await Promise.all([
     db.misRecord.count({ where: notDeleted }),
     db.misRecord.aggregate({ where: notDeleted, _sum: { totalQuantityLtrs: true, bucket: true } }),
@@ -34,7 +36,7 @@ export const GET = route(async (_req: NextRequest) => {
         SUM(CASE WHEN "actualDeliveryDate" IS NOT NULL AND "expectedDeliveryDate" IS NOT NULL AND "actualDeliveryDate" > "expectedDeliveryDate" THEN 1 ELSE 0 END) as delayed
        FROM "MisRecord" WHERE "deletedAt" IS NULL`
     ),
-    // last 30 days of LR activity (windowed — cheap at any scale)
+    // last 45 days of LR activity (windowed — cheap at any scale)
     rawQuery<{ d: Date; qty: number; c: number }[]>(
       `SELECT "lrDate" as d, SUM("totalQuantityLtrs") as qty, COUNT(*) as c
        FROM "MisRecord"
@@ -42,13 +44,15 @@ export const GET = route(async (_req: NextRequest) => {
        GROUP BY "lrDate" ORDER BY "lrDate" ASC`,
       new Date(now.getTime() - 45 * 86400 * 1000)
     ),
-    // pending / in-transit detail
+    // pending / in-transit detail (broad LOWER match to catch casing variants)
     rawQuery<{ partyName: string; destination: string; lrNo: number; qty: number; lrDate: Date; expectedDeliveryDate: Date | null }[]>(
       `SELECT "partyName", "destination", "lrNo", "totalQuantityLtrs" as qty, "lrDate", "expectedDeliveryDate"
        FROM "MisRecord"
-       WHERE "deletedAt" IS NULL AND "deliveryStatus" IN ('Pending', 'In transit')
+       WHERE "deletedAt" IS NULL AND LOWER(TRIM(COALESCE("deliveryStatus", ''))) IN ('pending', 'in transit')
        ORDER BY "lrDate" ASC`
     ),
+    // fetch canonical delivery status options to drive normalisation
+    getFields(),
   ])
 
   // top destinations
@@ -57,25 +61,48 @@ export const GET = route(async (_req: NextRequest) => {
     _count: true, _sum: { totalQuantityLtrs: true },
   })
 
-  const statusMap = new Map(statusGroups.map((g) => [g.deliveryStatus ?? '(blank)', g]))
-  const delivered = statusMap.get('Delivered')
-  const pending = statusMap.get('Pending')
-  const inTransit = statusMap.get('In transit')
+  // Canonical options for deliveryStatus from the field registry
+  const dsField = fields.find((f) => f.fieldKey === 'deliveryStatus')
+  const canonicals = dsField?.options ?? []
+
+  // Fold all raw deliveryStatus groups into canonicalized buckets so that
+  // "DELIVERED", "Delievered", etc. all count toward "Delivered".
+  const canonMap = new Map<string, { count: number; qty: number }>()
+  for (const g of statusGroups) {
+    const raw = g.deliveryStatus ?? '(blank)'
+    const canon = raw === '(blank)'
+      ? '(blank)'
+      : (canonicals.length > 0 ? normalizeStatus(raw, canonicals) : raw)
+    const existing = canonMap.get(canon) ?? { count: 0, qty: 0 }
+    canonMap.set(canon, {
+      count: existing.count + g._count,
+      qty: existing.qty + Number(g._sum.totalQuantityLtrs ?? 0),
+    })
+  }
+
   const ftl = loadGroups.find((g) => g.loadType === 'FTL')
   const ptl = loadGroups.find((g) => g.loadType === 'PTL')
   const podReceived = podGroups
     .filter((g) => g.podStatus === 'Received' || g.podStatus === 'Received By NPL')
     .reduce((s, g) => s + g._count, 0)
 
+  // Look up canonicalized counts (try both spellings that may appear depending
+  // on what is stored in the field options array)
+  const deliveredEntry = canonMap.get('Delivered') ?? { count: 0, qty: 0 }
+  const pendingEntry   = canonMap.get('Pending')   ?? { count: 0, qty: 0 }
+  // "In transit" is the legacy spelling in the options; the normalizer maps
+  // it to whatever the canonical is; try both just in case.
+  const inTransitEntry = canonMap.get('In Transit') ?? canonMap.get('In transit') ?? { count: 0, qty: 0 }
+
   const data: DashboardData = {
     totalRecords,
     totalQuantityLtrs: Number(qtyAgg._sum.totalQuantityLtrs ?? 0),
     totalBuckets: Number(qtyAgg._sum.bucket ?? 0),
-    deliveredCount: delivered?._count ?? 0,
-    deliveredQty: Number(delivered?._sum.totalQuantityLtrs ?? 0),
-    pendingCount: pending?._count ?? 0,
-    pendingQty: Number(pending?._sum.totalQuantityLtrs ?? 0),
-    inTransitCount: inTransit?._count ?? 0,
+    deliveredCount: deliveredEntry.count,
+    deliveredQty: deliveredEntry.qty,
+    pendingCount: pendingEntry.count,
+    pendingQty: pendingEntry.qty,
+    inTransitCount: inTransitEntry.count,
     ftlCount: ftl?._count ?? 0,
     ptlCount: ptl?._count ?? 0,
     todayEntries,
@@ -83,9 +110,9 @@ export const GET = route(async (_req: NextRequest) => {
     podReceivedCount: podReceived,
     onTimeCount: Number(onTimeRow[0]?.ontime ?? 0),
     delayedCount: Number(onTimeRow[0]?.delayed ?? 0),
-    undeliveredCount: totalRecords - (delivered?._count ?? 0),
-    statusBreakdown: statusGroups
-      .map((g) => ({ status: g.deliveryStatus ?? '(blank)', count: g._count, qty: Number(g._sum.totalQuantityLtrs ?? 0) }))
+    undeliveredCount: totalRecords - deliveredEntry.count,
+    statusBreakdown: [...canonMap.entries()]
+      .map(([status, { count, qty }]) => ({ status, count, qty }))
       .sort((a, b) => b.count - a.count),
     podBreakdown: podGroups
       .map((g) => ({ status: g.podStatus ?? '(blank)', count: g._count }))

@@ -1,6 +1,7 @@
 // Value coercion & serialization between client/Excel representations and typed storage
 import type { FieldDef } from '@/lib/types'
 import { TYPE_TRAITS } from '@/lib/services/fields'
+import { normalizeDropdownValue } from '@/lib/services/status-normalizer'
 
 export type StoredValue = string | number | Date | boolean | null
 
@@ -104,7 +105,11 @@ export function coerceValue(field: FieldDef, raw: unknown): CoerceResult {
   }
 
   if (field.dataType === 'DROPDOWN') {
-    return { ok: true, value: String(raw).trim() }
+    // Canonicalize against the field's known options using controlled fuzzy
+    // matching (typo correction that is negation-safe and token-safe).
+    const options = field.options && field.options.length > 0 ? field.options : null
+    const normalized = normalizeDropdownValue(raw, options)
+    return { ok: true, value: normalized ?? String(raw).trim() }
   }
 
   // TEXT / LONG_TEXT

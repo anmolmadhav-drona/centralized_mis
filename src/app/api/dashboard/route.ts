@@ -86,13 +86,23 @@ export const GET = route(async (_req: NextRequest) => {
     .filter((g) => g.podStatus === 'Received' || g.podStatus === 'Received By NPL')
     .reduce((s, g) => s + g._count, 0)
 
-  // Look up canonicalized counts (try both spellings that may appear depending
-  // on what is stored in the field options array)
-  const deliveredEntry = canonMap.get('Delivered') ?? { count: 0, qty: 0 }
-  const pendingEntry   = canonMap.get('Pending')   ?? { count: 0, qty: 0 }
-  // "In transit" is the legacy spelling in the options; the normalizer maps
-  // it to whatever the canonical is; try both just in case.
-  const inTransitEntry = canonMap.get('In Transit') ?? canonMap.get('In transit') ?? { count: 0, qty: 0 }
+  // Case-insensitive lookup so dashboard counts work regardless of how
+  // Delivery Status is stored: "Delivered", "DELIVERED", "delivered", etc.
+  const getStatusEntry = (status: string) => {
+    const target = status.trim().toLowerCase()
+
+    for (const [key, value] of canonMap.entries()) {
+      if (key.trim().toLowerCase() === target) {
+        return value
+      }
+    }
+
+    return { count: 0, qty: 0 }
+  }
+
+  const deliveredEntry = getStatusEntry('Delivered')
+  const pendingEntry = getStatusEntry('Pending')
+  const inTransitEntry = getStatusEntry('In Transit')
 
   const data: DashboardData = {
     totalRecords,

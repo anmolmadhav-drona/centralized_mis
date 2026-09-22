@@ -140,7 +140,7 @@ export class ExcelGridController {
     const api = this.deps.api()
     if (api) this.hookApi(api)
 
-    ;(window as unknown as Record<string, unknown>).__misExcel = this
+      ; (window as unknown as Record<string, unknown>).__misExcel = this
   }
 
   destroy() {
@@ -242,11 +242,68 @@ export class ExcelGridController {
   private nodeAt(rowIndex: number): MisRecordDto | null {
     const api = this.api()
     if (!api) return null
+
     try {
-      for (const n of api.getRenderedNodes()) {
-        if (n.rowIndex === rowIndex && n.data) return n.data as MisRecordDto
+      // Prefer the row directly from AG Grid's displayed row model.
+      const node = api.getDisplayedRowAtIndex(rowIndex)
+
+      if (node?.data) {
+        return node.data as MisRecordDto
       }
-    } catch { /* ignore */ }
+
+      // Fallback for rows currently rendered in the DOM.
+      for (const n of api.getRenderedNodes()) {
+        if (n.rowIndex === rowIndex && n.data) {
+          return n.data as MisRecordDto
+        }
+      }
+    } catch {
+      // Ignore transient Infinite Row Model states.
+    }
+
+    return null
+  }
+
+  private getVisibleRowRange(): { min: number; max: number } | null {
+    const host = this.host()
+    const api = this.api()
+    if (!host || !api) return null
+
+    const gridViewport = (host.querySelector('.ag-grid-viewport') || host.querySelector('.ag-body-viewport') || host) as HTMLElement
+    const vpRect = gridViewport.getBoundingClientRect()
+
+    const rowEls = host.querySelectorAll('.ag-row[row-index]')
+    let min = Infinity
+    let max = -1
+
+    rowEls.forEach((el) => {
+      const idx = Number(el.getAttribute('row-index'))
+      if (!Number.isInteger(idx)) return
+      const rect = el.getBoundingClientRect()
+      // Row intersects visible row area
+      if (rect.top < vpRect.bottom - 4 && rect.bottom > vpRect.top + 4) {
+        if (idx > max) max = idx
+        if (idx < min) min = idx
+      }
+    })
+
+    if (max !== -1 && min !== Infinity) {
+      return { min, max }
+    }
+
+    // Fallback: estimate from vertical scroll pixel position and row height
+    try {
+      const vRange = api.getVerticalPixelRange?.()
+      const rowHeight = api.getSizesForCurrentTheme?.()?.rowHeight ?? 36
+      if (vRange && rowHeight > 0) {
+        const approxMin = Math.max(0, Math.floor(vRange.top / rowHeight))
+        const approxMax = Math.max(0, Math.floor((vRange.bottom - 1) / rowHeight))
+        return { min: approxMin, max: approxMax }
+      }
+    } catch {
+      // Ignore transient errors
+    }
+
     return null
   }
 
@@ -306,7 +363,7 @@ export class ExcelGridController {
     const host = this.host()
     if (!host) return
     const hostRect = host.getBoundingClientRect()
-    const vp = host.querySelector('.ag-body-viewport') as HTMLElement | null
+    const vp = (host.querySelector('.ag-grid-viewport') || host.querySelector('.ag-body-viewport')) as HTMLElement | null
     const vpRect = vp ? vp.getBoundingClientRect() : hostRect
 
     const set = (el: HTMLElement | null, l: number, t: number, w: number, h: number, visible: boolean) => {
@@ -396,28 +453,105 @@ export class ExcelGridController {
 
   private onMouseMove = (e: MouseEvent) => {
     if (this.mode === 'idle') return
-    this.lastPointer = { x: e.clientX, y: e.clientY }
-    const pos = this.posFromPoint(e.clientX, e.clientY)
+
+    this.lastPointer = {
+      x: e.clientX,
+      y: e.clientY,
+    }
+
+    let pos = this.posFromPoint(
+      e.clientX,
+      e.clientY,
+    )
+
+    // When dragging near the bottom/top edge, the pointer can
+    // temporarily be over the scrollbar or header instead of an .ag-cell.
+    // During drag, keep using the nearest visible row so the range
+    // continues to track smoothly while auto-scrolling.
+    if (!pos && (this.mode === 'filling' || this.mode === 'selecting')) {
+      try {
+        const host = this.host()
+        const gridViewport = (host?.querySelector('.ag-grid-viewport') || host?.querySelector('.ag-body-viewport') || host) as HTMLElement | null
+        if (gridViewport) {
+          const viewRect = gridViewport.getBoundingClientRect()
+          const edge = 70
+          const isBottom = e.clientY >= viewRect.bottom - edge
+          const isTop = e.clientY <= viewRect.top + edge
+
+          if (isBottom || isTop) {
+            const visible = this.getVisibleRowRange()
+            if (visible) {
+              const rowIndex = isBottom ? visible.max : visible.min
+              const cols = this.displayedCols()
+              let colId = this.fillSel && this.fillSel.c2 >= 0 ? cols[this.fillSel.c2] : this.range?.focus.colId ?? cols[0]
+
+              // Prefer the cell under pointer X coordinate
+              const sampleY = Math.min(viewRect.bottom - 10, Math.max(viewRect.top + 10, e.clientY))
+              const cell = document
+                .elementFromPoint(e.clientX, sampleY)
+                ?.closest('.ag-cell') as HTMLElement | null
+
+              if (cell?.getAttribute('col-id')) {
+                colId = cell.getAttribute('col-id')!
+              }
+
+              if (colId && rowIndex >= 0) {
+                pos = {
+                  rowIndex,
+                  colId,
+                }
+              }
+            }
+          }
+        }
+      } catch {
+        // Ignore transient virtualisation states.
+      }
+    }
+
     if (!pos) return
+
     if (this.mode === 'selecting' && this.range) {
-      if (pos.rowIndex !== this.range.focus.rowIndex || pos.colId !== this.range.focus.colId) {
-        this.log(`mousemove extend → ${pos.rowIndex},${pos.colId}`)
-        this.range = { anchor: this.range.anchor, focus: pos }
+      if (
+        pos.rowIndex !== this.range.focus.rowIndex ||
+        pos.colId !== this.range.focus.colId
+      ) {
+        this.log(
+          `mousemove extend → ${pos.rowIndex},${pos.colId}`,
+        )
+
+        this.range = {
+          anchor: this.range.anchor,
+          focus: pos,
+        }
+
         this.info()
         this.redraw()
       }
-    } else if (this.mode === 'filling' && this.fillSel) {
+    } else if (
+      this.mode === 'filling' &&
+      this.fillSel
+    ) {
       const cols = this.displayedCols()
       const ci = cols.indexOf(pos.colId)
+
       if (ci !== -1) {
         const sel = this.fillSel
-        // fill extends only right/down from the selection (Excel corner drag)
+
+        // Fill extends only right/down from the selection.
         this.ghost = {
           r1: sel.r1,
           c1: sel.c1,
-          r2: Math.max(sel.r2, pos.rowIndex),
-          c2: Math.max(sel.c2, ci),
+          r2: Math.max(
+            sel.r2,
+            pos.rowIndex,
+          ),
+          c2: Math.max(
+            sel.c2,
+            ci,
+          ),
         }
+
         this.redraw()
       }
     }
@@ -576,35 +710,126 @@ export class ExcelGridController {
   // ------------------------------------------------------------------
   private startAutoscroll() {
     if (this.raf) return
+
+    let lastVerticalScrollAt = 0
+
     const tick = () => {
-      if (this.mode === 'idle' || !this.lastPointer) { this.raf = 0; return }
+      if (
+        this.mode === 'idle' ||
+        !this.lastPointer
+      ) {
+        this.raf = 0
+        return
+      }
+
       const host = this.host()
-      if (!host) { this.raf = 0; return }
-      const vp = host.querySelector('.ag-body-viewport') as HTMLElement | null
-      const hv = host.querySelector('.ag-body-horizontal-scroll-viewport') as HTMLElement | null
+      const api = this.api()
+
+      if (!host || !api) {
+        this.raf = 0
+        return
+      }
+
+      const now = performance.now()
+
+      const gridViewport = (host.querySelector('.ag-grid-viewport') || host.querySelector('.ag-body-viewport') || host) as HTMLElement
+      const viewRect = gridViewport.getBoundingClientRect()
+
+      const edge = 55
+
+      const nearBottom = this.lastPointer.y >= viewRect.bottom - edge
+      const nearTop = !nearBottom && this.lastPointer.y <= viewRect.top + edge
+
       let scrolled = false
-      if (vp) {
-        const rect = vp.getBoundingClientRect()
-        const m = 38
-        if (this.lastPointer.y < rect.top + m) { vp.scrollTop -= 16; scrolled = true }
-        else if (this.lastPointer.y > rect.bottom - m) { vp.scrollTop += 16; scrolled = true }
+
+      // --------------------------------------------------
+      // Vertical auto-scroll
+      // --------------------------------------------------
+      //
+      // Deliberately throttled so the fill moves controlled
+      // approximately one row at a time.
+      //
+      if (
+        (nearTop || nearBottom) &&
+        now - lastVerticalScrollAt >= 140
+      ) {
+        lastVerticalScrollAt = now
+
+        try {
+          const visible = this.getVisibleRowRange()
+          const totalRows = api.getDisplayedRowCount?.() ?? 0
+
+          if (visible) {
+            if (nearBottom) {
+              const nextRow = visible.max + 1
+              if (totalRows <= 0 || nextRow < totalRows) {
+                api.ensureIndexVisible(nextRow, 'bottom')
+                scrolled = true
+              }
+            } else if (nearTop) {
+              const prevRow = visible.min - 1
+              if (prevRow >= 0) {
+                api.ensureIndexVisible(prevRow, 'top')
+                scrolled = true
+              }
+            }
+          }
+        } catch {
+          // Ignore transient Infinite Row Model states.
+        }
       }
-      // horizontal autoscroll ONLY for range selection — during a fill drag it
-      // would shift content under the stationary pointer and silently extend
-      // the fill into neighbouring columns (reproduced & disabled on purpose)
-      if (hv && this.mode === 'selecting') {
-        const rect = hv.getBoundingClientRect()
-        const m = 38
-        if (this.lastPointer.x < rect.left + m) { hv.scrollLeft -= 16; scrolled = true }
-        else if (this.lastPointer.x > rect.right - m) { hv.scrollLeft += 16; scrolled = true }
+
+      // --------------------------------------------------
+      // Horizontal auto-scroll
+      // --------------------------------------------------
+      const horizontalViewport =
+        host.querySelector(
+          '.ag-body-horizontal-scroll-viewport',
+        ) as HTMLElement | null
+
+      if (
+        horizontalViewport &&
+        (
+          this.mode === 'selecting' ||
+          this.mode === 'filling'
+        )
+      ) {
+        const rect =
+          horizontalViewport.getBoundingClientRect()
+
+        const horizontalEdge = 38
+
+        if (
+          this.lastPointer.x <
+          rect.left + horizontalEdge
+        ) {
+          horizontalViewport.scrollLeft -= 12
+          scrolled = true
+        } else if (
+          this.lastPointer.x >
+          rect.right - horizontalEdge
+        ) {
+          horizontalViewport.scrollLeft += 12
+          scrolled = true
+        }
       }
+
+      // --------------------------------------------------
+      // Recalculate drag position after scrolling
+      // --------------------------------------------------
       if (scrolled) {
-        const pos = this.posFromPoint(this.lastPointer.x, this.lastPointer.y)
-        if (pos) this.onMouseMove({ clientX: this.lastPointer.x, clientY: this.lastPointer.y } as MouseEvent)
+        this.onMouseMove({
+          clientX: this.lastPointer.x,
+          clientY: this.lastPointer.y,
+        } as MouseEvent)
       }
-      this.raf = requestAnimationFrame(tick)
+
+      this.raf =
+        requestAnimationFrame(tick)
     }
-    this.raf = requestAnimationFrame(tick)
+
+    this.raf =
+      requestAnimationFrame(tick)
   }
 
   private stopAutoscroll() {
@@ -1194,6 +1419,6 @@ export class ExcelGridController {
     const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })
     const host = this.host()
     const cell = host?.querySelector('.ag-cell') as HTMLElement | null
-    ;(cell ?? host)?.dispatchEvent(ev)
+      ; (cell ?? host)?.dispatchEvent(ev)
   }
 }

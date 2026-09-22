@@ -136,6 +136,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "tnum" 1;
@@ -151,22 +152,64 @@
 .badge-tone {
   @apply inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap;
 }
-.badge-default { @apply border-[#E7E3DE] bg-[#F5F3EF] text-[#4A4640]; }
-.dark .badge-default { @apply border-white/12 bg-white/8 text-[#C9C4BD]; }
-.badge-success { @apply border-[#4E7A51]/40 bg-[#EDF3EE] text-[#3A6147]; }
-.dark .badge-success { @apply border-[#6FA17C]/35 bg-[#6FA17C]/12 text-[#8FC49B]; }
-.badge-warning { @apply border-[#E89A16]/45 bg-[#FBF1DD] text-[#8A5B0F]; }
-.dark .badge-warning { @apply border-[#E89A16]/40 bg-[#E89A16]/12 text-[#EFC06A]; }
-.badge-danger { @apply border-[#A91518]/35 bg-[#F9E9E7] text-[#A91518]; }
-.dark .badge-danger { @apply border-[#E0524A]/40 bg-[#E0524A]/12 text-[#F09A93]; }
+
+.badge-default {
+  @apply border-[#E7E3DE] bg-[#F5F3EF] text-[#4A4640];
+}
+
+.dark .badge-default {
+  @apply border-white/12 bg-white/8 text-[#C9C4BD];
+}
+
+.badge-success {
+  @apply border-[#4E7A51]/40 bg-[#EDF3EE] text-[#3A6147];
+}
+
+.dark .badge-success {
+  @apply border-[#6FA17C]/35 bg-[#6FA17C]/12 text-[#8FC49B];
+}
+
+.badge-warning {
+  @apply border-[#E89A16]/45 bg-[#FBF1DD] text-[#8A5B0F];
+}
+
+.dark .badge-warning {
+  @apply border-[#E89A16]/40 bg-[#E89A16]/12 text-[#EFC06A];
+}
+
+.badge-danger {
+  @apply border-[#A91518]/35 bg-[#F9E9E7] text-[#A91518];
+}
+
+.dark .badge-danger {
+  @apply border-[#E0524A]/40 bg-[#E0524A]/12 text-[#F09A93];
+}
+
 /* warehouse brown — "info" reads as grounded infrastructure state */
-.badge-info { @apply border-[#70421F]/35 bg-[#F2EAE0] text-[#70421F]; }
-.dark .badge-info { @apply border-[#A87B4E]/40 bg-[#A87B4E]/14 text-[#D8B48A]; }
-.badge-neutral { @apply border-[#D8D2CA] bg-[#F1EEE9] text-[#6B6B6B]; }
-.dark .badge-neutral { @apply border-white/12 bg-white/8 text-[#A39D95]; }
+.badge-info {
+  @apply border-[#70421F]/35 bg-[#F2EAE0] text-[#70421F];
+}
+
+.dark .badge-info {
+  @apply border-[#A87B4E]/40 bg-[#A87B4E]/14 text-[#D8B48A];
+}
+
+.badge-neutral {
+  @apply border-[#D8D2CA] bg-[#F1EEE9] text-[#6B6B6B];
+}
+
+.dark .badge-neutral {
+  @apply border-white/12 bg-white/8 text-[#A39D95];
+}
+
 /* "purple" slot repurposed to bronze — FTL load-type marker (class name kept) */
-.badge-purple { @apply border-[#8B5A2B]/40 bg-[#F6EDE3] text-[#8B5A2B]; }
-.dark .badge-purple { @apply border-[#A87B4E]/45 bg-[#A87B4E]/16 text-[#DDB888]; }
+.badge-purple {
+  @apply border-[#8B5A2B]/40 bg-[#F6EDE3] text-[#8B5A2B];
+}
+
+.dark .badge-purple {
+  @apply border-[#A87B4E]/45 bg-[#A87B4E]/16 text-[#DDB888];
+}
 
 /* KPI number typography — display face, tabular figures */
 .kpi-value {
@@ -178,28 +221,46 @@
 .filter-chip {
   @apply inline-flex items-center gap-1.5 rounded-full border border-[#E89A16]/40 bg-[#FBF1DD]/80 py-1 pl-3 pr-1.5 text-xs text-[#70421F];
 }
+
 .dark .filter-chip {
   @apply border-[#E89A16]/35 bg-[#E89A16]/10 text-[#EFC06A];
 }
 
 /* Custom scrollbars for dense data areas */
-.nice-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
-.nice-scroll::-webkit-scrollbar-track { background: transparent; }
+.nice-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.nice-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .nice-scroll::-webkit-scrollbar-thumb {
   background: #C9C2BA;
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
-.nice-scroll::-webkit-scrollbar-thumb:hover { background: #A89F93; background-clip: content-box; }
+
+.nice-scroll::-webkit-scrollbar-thumb:hover {
+  background: #A89F93;
+  background-clip: content-box;
+}
+
 .dark .nice-scroll::-webkit-scrollbar-thumb {
   background: #4A453F;
   background-clip: content-box;
 }
 
 /* AG Grid wrapper — full-height flex layout */
-.ag-wrap { @apply flex min-h-0 flex-1 flex-col; }
-.ag-theme-flex { @apply min-h-0 flex-1; }
+.ag-wrap {
+  @apply flex min-h-0 flex-1 flex-col;
+}
+
+.ag-theme-flex {
+  @apply min-h-0 flex-1;
+}
 
 /* ------------------------------------------------------------------ */
 /* Formula-aware grid cells                                            */
@@ -207,15 +268,16 @@
 /* ------------------------------------------------------------------ */
 /* cell driven by a stored formula — subtle gold marker + italic */
 .mis-formula-cell {
-  position: relative;
   font-style: italic;
   color: #8A5B0F;
   background: rgba(232, 154, 22, 0.10);
 }
+
 .dark .mis-formula-cell {
   color: #E8B45C;
   background: rgba(232, 154, 22, 0.09);
 }
+
 .mis-formula-cell::after {
   content: '';
   position: absolute;
@@ -227,7 +289,10 @@
   border-left: 6px solid transparent;
   pointer-events: none;
 }
-.dark .mis-formula-cell::after { border-top-color: #E89A16; }
+
+.dark .mis-formula-cell::after {
+  border-top-color: #E89A16;
+}
 
 /* cell whose formula errored — #REF! / #DIV/0! / #CYCLE! … */
 .mis-cell-error {
@@ -236,6 +301,7 @@
   font-style: normal;
   background: rgba(169, 21, 24, 0.07);
 }
+
 .dark .mis-cell-error {
   color: #F09A93;
   background: rgba(224, 82, 74, 0.12);
@@ -246,8 +312,14 @@
 /* Drona red selection in light theme, logistics gold in dark          */
 /* ------------------------------------------------------------------ */
 /* host: the grid wrapper gets a positioning context for the overlay */
-.excel-host { position: relative; }
-.excel-host .ag-cell { user-select: none; -webkit-user-select: none; }
+.excel-host {
+  position: relative;
+}
+
+.excel-host .ag-cell {
+  user-select: none;
+  -webkit-user-select: none;
+}
 
 /* full-grid overlay — pointer-transparent except the fill handle */
 .excel-overlay {
@@ -264,7 +336,10 @@
   background: rgba(169, 21, 24, 0.10);
   border-radius: 2px;
 }
-.dark .excel-range-fill { background: rgba(232, 154, 22, 0.13); }
+
+.dark .excel-range-fill {
+  background: rgba(232, 154, 22, 0.13);
+}
 
 /* 2px marching-ants-style border around the selection */
 .excel-range-border {
@@ -273,6 +348,7 @@
   border-radius: 3px;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
 }
+
 .dark .excel-range-border {
   border-color: #E89A16;
   box-shadow: 0 0 0 1px rgba(20, 18, 15, 0.7);
@@ -290,12 +366,19 @@
   cursor: crosshair;
   z-index: 21;
 }
+
 .dark .excel-fill-handle {
   background: #E89A16;
   border-color: #211E1B;
 }
-.excel-fill-handle:hover { transform: scale(1.25); }
-.excel-fill-handle:active { transform: scale(1.05); }
+
+.excel-fill-handle:hover {
+  transform: scale(1.25);
+}
+
+.excel-fill-handle:active {
+  transform: scale(1.05);
+}
 
 /* dashed ghost preview while dragging the fill handle */
 .excel-ghost-fill {
@@ -304,6 +387,7 @@
   background: rgba(169, 21, 24, 0.06);
   border-radius: 3px;
 }
+
 .dark .excel-ghost-fill {
   border-color: rgba(232, 154, 22, 0.8);
   background: rgba(232, 154, 22, 0.08);
@@ -316,11 +400,25 @@
   border-radius: 3px;
   animation: excel-cut-dash 1.1s linear infinite;
 }
-.dark .excel-cut-border { border-color: #E89A16; }
+
+.dark .excel-cut-border {
+  border-color: #E89A16;
+}
+
 @keyframes excel-cut-dash {
-  0% { border-style: dashed; opacity: 1; }
-  50% { opacity: 0.55; }
-  100% { border-style: dashed; opacity: 1; }
+  0% {
+    border-style: dashed;
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.55;
+  }
+
+  100% {
+    border-style: dashed;
+    opacity: 1;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -329,23 +427,40 @@
 .drona-route-dash {
   animation: drona-route 1.4s linear infinite;
 }
+
 @keyframes drona-route {
-  from { stroke-dashoffset: 24; }
-  to { stroke-dashoffset: -104; }
+  from {
+    stroke-dashoffset: 24;
+  }
+
+  to {
+    stroke-dashoffset: -104;
+  }
 }
 
 /* live pulse — small "system is live" dot */
 .drona-live-dot {
   animation: drona-live 2.2s ease-in-out infinite;
 }
+
 @keyframes drona-live {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
 }
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

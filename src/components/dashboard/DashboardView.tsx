@@ -27,7 +27,7 @@ import type { DashboardData } from '@/lib/types'
 const STATUS_COLORS: Record<string, string> = {
   Delivered: '#4E7A51',
   Pending: '#E89A16',
-  'In transit': '#70421F',
+  'In Transit': '#70421F',
   'Handover to NPL': '#8A8580',
   Return: '#A91518',
   'Return to WH': '#C05621',

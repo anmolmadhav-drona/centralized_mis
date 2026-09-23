@@ -67,15 +67,13 @@ const FIELDS: Array<{
   {
     key: 'deliveryStatus', name: 'DELIVERY STATUS', display: 'Delivery Status', type: 'TEXT', width: 24,
     default: 'Pending', // new shipments start as Pending until dispatched
+    options: ['Delivered', 'In Transit', 'Pending'],
   },
   // Delivery-tracking derived columns — the same definitions the one-time
   // migrate-delivery-fields.ts registered on the historical database. The
   // delivery sync service (src/lib/services/delivery.ts) maintains them on
   // every dispatch/POD change; values for seeded records are derived with
   // the identical runtime rules below.
-  {
-    key: 'liveStatus', name: 'LIVE DELIVERY STATUS', display: 'Delivery Status (Live)', type: 'TEXT', width: 22,
-  },
   { key: 'trackingId', name: 'TRACKING / SHIPMENT ID', display: 'Tracking / Shipment ID', type: 'TEXT', width: 22 },
   { key: 'lastStatusUpdate', name: 'LAST STATUS UPDATE', display: 'Last Status Update', type: 'DATETIME', width: 20 },
   { key: 'lrStatus', name: 'LR STATUS', display: 'LR Status', type: 'TEXT', width: 18, default: 'To be Billed' },

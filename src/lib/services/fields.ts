@@ -106,7 +106,6 @@ export const CORE_COLUMNS: Record<string, string> = {
   actualDeliveryDate: 'actualDeliveryDate',
   deliveryStatus: 'deliveryStatus',
   trackingId: 'trackingId',
-  liveStatus: 'liveStatus',
   lastStatusUpdate: 'lastStatusUpdate',
   lrStatus: 'lrStatus',
   damage: 'damage',

@@ -26,6 +26,7 @@ type FieldDefinition = {
   width: number
   required?: boolean
   default?: string
+  options?: string[]
 }
 
 const FIELDS: FieldDefinition[] = [
@@ -46,9 +47,9 @@ const FIELDS: FieldDefinition[] = [
   { key: 'loadType', name: 'LOAD TYPE FTL/PTL', display: 'Load Type', type: 'TEXT', width: 22.9, default: 'PTL' },
   { key: 'expectedDeliveryDate', name: 'EXPECTED DELIVERY DATE', display: 'Expected Delivery Date', type: 'DATE', width: 29.1 },
   { key: 'actualDeliveryDate', name: 'ACTUAL DELIVERY DATE', display: 'Actual Delivery Date', type: 'DATE', width: 27.0 },
-  { key: 'deliveryStatus', name: 'DELIVERY STATUS', display: 'Delivery Status', type: 'TEXT', width: 24, default: 'Pending' },
+  { key: 'deliveryStatus', name: 'DELIVERY STATUS', display: 'Delivery Status', type: 'TEXT', width: 24, default: 'Pending', options: ['Delivered', 'In Transit', 'Pending'] },
 
-  { key: 'liveStatus', name: 'LIVE DELIVERY STATUS', display: 'Delivery Status (Live)', type: 'TEXT', width: 22 },
+
   { key: 'trackingId', name: 'TRACKING / SHIPMENT ID', display: 'Tracking / Shipment ID', type: 'TEXT', width: 22 },
   { key: 'lastStatusUpdate', name: 'LAST STATUS UPDATE', display: 'Last Status Update', type: 'DATETIME', width: 20 },
 
@@ -102,6 +103,9 @@ async function main() {
         isSystem: field.key === 'srNo',
         active: true,
         width: field.width,
+        ...(field.options !== undefined
+          ? { options: JSON.stringify(field.options) }
+          : {}),
       }
 
       if (existing) {

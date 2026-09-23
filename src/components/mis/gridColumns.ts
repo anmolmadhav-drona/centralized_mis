@@ -21,7 +21,6 @@ function formulaMeta(data: unknown, fieldKey: string): { formula?: string; error
 /** Fields rendered as colored status badges */
 const BADGE_FIELDS: Record<string, (v: unknown) => string> = {
   deliveryStatus: deliveryStatusTone,
-  liveStatus: deliveryStatusTone,
   podStatus: podStatusTone,
   loadType: loadTypeTone,
 }
@@ -71,6 +70,7 @@ export function buildColumnDefs(fields: FieldDef[], opts: { canEdit: boolean }):
 
   for (const field of fields) {
     if (field.isSystem) continue
+    if (!field.active) continue
     const col: ColDef = {
       colId: field.fieldKey,
       field: field.fieldKey,

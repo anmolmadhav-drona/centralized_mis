@@ -72,7 +72,7 @@ const SECTION_DEFS: SectionDef[] = [
   {
     id: 'delivery', title: 'Delivery Tracking', icon: Package,
     description: 'Dates, delivery status and live tracking',
-    keys: ['expectedDeliveryDate', 'actualDeliveryDate', 'deliveryStatus', 'liveStatus', 'trackingId', 'lastStatusUpdate'],
+    keys: ['expectedDeliveryDate', 'actualDeliveryDate', 'deliveryStatus', 'trackingId', 'lastStatusUpdate'],
   },
   {
     id: 'billing', title: 'Billing & POD', icon: ReceiptText,
@@ -89,7 +89,6 @@ const SECTION_DEFS: SectionDef[] = [
 // small helper text under specific fields
 const FIELD_HELP: Record<string, string> = {
   deliveryStatus: 'Manual status — drives reports and the Summary sheet.',
-  liveStatus: 'Auto-derived from the shipment sync — no need to fill manually.',
   trackingId: 'Courier tracking number — enables live status lookups.',
   totalQuantityLtrs: 'Litres — or a formula like =Bucket*20.',
   loadingCharges: 'Amount or Excel formula, e.g. =Bucket*3.',

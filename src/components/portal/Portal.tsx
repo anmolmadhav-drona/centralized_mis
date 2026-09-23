@@ -55,9 +55,9 @@ export default function Portal() {
       pushNotification({ kind: 'import', title: `Excel import applied by ${e.by || 'a user'}`, description: e.detail || `${e.count ?? 0} records affected` })
       toast.info(`Excel import applied by ${e.by || 'a user'}`, {
         description: e.detail || `${e.count ?? 0} records affected`,
-        action: { label: 'Refresh view', onClick: () => requestRefresh() },
         duration: 12_000,
       })
+      requestRefresh()
       return
     }
     const labels: Record<string, string> = {
@@ -69,9 +69,9 @@ export default function Portal() {
     pushNotification({ kind: 'data', title: `${e.count ?? 1} ${label}`, description: `by ${e.by || 'another user'} • just now` })
     toast.info(`${e.count ?? 1} ${label}`, {
       description: `by ${e.by || 'another user'} • just now`,
-      action: { label: 'Refresh view', onClick: () => requestRefresh() },
       duration: 10_000,
     })
+    requestRefresh()
   })
 
   if (isLoading) {

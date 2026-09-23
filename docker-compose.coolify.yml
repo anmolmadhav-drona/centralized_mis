@@ -15,10 +15,6 @@ services:
     expose:
       - "3003"
       - "3004"
-    
-    networks:
-      - default
-      - coolify
 
     healthcheck:
       test:

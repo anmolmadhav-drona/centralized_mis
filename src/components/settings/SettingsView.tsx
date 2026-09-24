@@ -596,7 +596,7 @@ function AddUserDialog({ open, onOpenChange, onAdded }: {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-[calc(100%-2rem)] max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Users className="h-4 w-4 text-primary" /> Add user</DialogTitle>
           <DialogDescription>Provision a portal account with a role.</DialogDescription>
@@ -613,13 +613,20 @@ function AddUserDialog({ open, onOpenChange, onAdded }: {
           <div className="space-y-1.5">
             <Label>Role</Label>
             <Select value={role} onValueChange={(v) => setRole(v as Role)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a role" />
+              </SelectTrigger>
+
               <SelectContent>
                 {(['ADMIN', 'MANAGER', 'USER', 'VIEWER'] as Role[]).map((r) => (
-                  <SelectItem key={r} value={r}>
-                    <div>
-                      <p className="text-[13px] font-medium">{ROLE_LABELS[r]}</p>
-                      <p className="text-[11px] text-muted-foreground">{ROLE_DESCRIPTIONS[r]}</p>
+                  <SelectItem key={r} value={r} textValue={ROLE_LABELS[r]}>
+                    <div className="py-0.5">
+                      <p className="text-[13px] font-medium">
+                        {ROLE_LABELS[r]}
+                      </p>
+                      <p className="max-w-[320px] text-[11px] leading-snug text-muted-foreground">
+                        {ROLE_DESCRIPTIONS[r]}
+                      </p>
                     </div>
                   </SelectItem>
                 ))}
@@ -627,7 +634,7 @@ function AddUserDialog({ open, onOpenChange, onAdded }: {
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Temporary password</Label>
+            <Label>Password</Label>
             <Input type="text" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="min 8 characters" />
           </div>
           {error && <p className="rounded-md border border-destructive/30 bg-destructive/8 px-3 py-2 text-[13px] text-destructive">{error}</p>}

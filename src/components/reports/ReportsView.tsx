@@ -52,9 +52,13 @@ export default function ReportsView() {
   const exportReport = async () => {
     setExporting(true)
     try {
-      // Full export of all active records (reports cover the whole MIS)
-      await apiDownload('/api/export', { includeSummary: true }, `MIS_Report_${tab}.xlsx`)
-      toast.success('Excel exported', { description: 'The workbook includes the live Summary sheet.' })
+      // Use the new dedicated Reports & Summaries export endpoint (5 sheets)
+      const url = `/api/reports/export?type=${tab}`
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = 'Reports_and_Summaries.xlsx'
+      anchor.click()
+      toast.success('Excel exported', { description: 'The workbook includes all 5 report sheets.' })
     } catch {
       toast.error('Export failed', { description: 'Please try again.' })
     } finally {

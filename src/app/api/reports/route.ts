@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db, rawQuery } from '@/lib/db'
 import { route, requirePermission } from '@/lib/api'
+import { normalizeMeasurement } from '@/lib/services/measurement'
 
 export const GET = route(async (req: NextRequest) => {
   await requirePermission('reports:view')
@@ -23,106 +24,153 @@ export const GET = route(async (req: NextRequest) => {
   }
 
   if (type === 'pending') {
-    // Live recreation of the original Summary intent: outstanding
-    // deliveries grouped by Party → Destination → LR No.
-    const rows = await rawQuery<Array<{
+    // Live recreation of the original Summary intent: outstanding deliveries
+    // grouped by Party → Destination → LR No. Now measurement-aware: a single
+    // LR that carries multiple measurements is split by normalized unit so
+    // incompatible quantities are never summed together.
+    const raw = await rawQuery<Array<{
       partyName: string | null; destination: string | null; lrNo: number | null
+      measurement: string | null
       qty: number | bigint | null; count: number | bigint; lrDate: unknown
       expectedDeliveryDate: unknown; deliveryStatus: string | null; podStatus: string | null
     }>>(
-      `SELECT "partyName", "destination", "lrNo", SUM("totalQuantityLtrs") as qty, COUNT(*) as count,
+      `SELECT "partyName", "destination", "lrNo", "measurement",
+              SUM("totalQuantityLtrs") as qty, COUNT(*) as count,
               MIN("lrDate") as lrDate, MIN("expectedDeliveryDate") as expectedDeliveryDate,
               MAX("deliveryStatus") as deliveryStatus, MAX("podStatus") as podStatus
        FROM "MisRecord"
        WHERE "deletedAt" IS NULL AND "deliveryStatus" IN ('Pending', 'In transit')
-       GROUP BY "partyName", "destination", "lrNo"
+       GROUP BY "partyName", "destination", "lrNo", "measurement"
        ORDER BY "partyName" ASC, "destination" ASC, "lrNo" ASC`
     )
-    return NextResponse.json({
-      type,
-      rows: rows.map((r) => {
-        const lrEpoch = epochOf(r.lrDate)
-        return {
+
+    // Fold case/spacing variants of the measurement together (SQL GROUP BY is
+    // case-sensitive; e.g. "ltr" and "LTR" arrive as separate groups).
+    type Acc = {
+      party: string; destination: string; lrNo: number; measurement: string
+      qty: number; lines: number; lrEpoch: number | null; expEpoch: number | null
+      status: string; pod: string
+    }
+    const acc = new Map<string, Acc>()
+    for (const r of raw) {
+      const measurement = normalizeMeasurement(r.measurement)
+      const key = `${r.partyName ?? ''}\u0000${r.destination ?? ''}\u0000${r.lrNo ?? 0}\u0000${measurement}`
+      const lrEpoch = epochOf(r.lrDate)
+      const expEpoch = epochOf(r.expectedDeliveryDate)
+      const cur = acc.get(key)
+      if (!cur) {
+        acc.set(key, {
           party: r.partyName ?? '',
           destination: r.destination ?? '',
           lrNo: r.lrNo ?? 0,
+          measurement,
           qty: Number(r.qty ?? 0),
           lines: Number(r.count ?? 0),
-          lrDate: isoDate(r.lrDate),
-          expected: isoDate(r.expectedDeliveryDate),
+          lrEpoch,
+          expEpoch,
           status: r.deliveryStatus ?? '',
           pod: r.podStatus ?? '',
-          ageDays: lrEpoch ? Math.max(0, Math.floor((Date.now() - lrEpoch) / 86400000)) : 0,
-        }
-      }),
+        })
+      } else {
+        cur.qty += Number(r.qty ?? 0)
+        cur.lines += Number(r.count ?? 0)
+        if (lrEpoch != null && (cur.lrEpoch == null || lrEpoch < cur.lrEpoch)) cur.lrEpoch = lrEpoch
+        if (expEpoch != null && (cur.expEpoch == null || expEpoch < cur.expEpoch)) cur.expEpoch = expEpoch
+        if ((r.deliveryStatus ?? '') > cur.status) cur.status = r.deliveryStatus ?? ''
+        if ((r.podStatus ?? '') > cur.pod) cur.pod = r.podStatus ?? ''
+      }
+    }
+
+    return NextResponse.json({
+      type,
+      rows: [...acc.values()].map((v) => ({
+        party: v.party,
+        destination: v.destination,
+        lrNo: v.lrNo,
+        qty: v.qty,
+        measurement: v.measurement,
+        lines: v.lines,
+        lrDate: isoDate(v.lrEpoch),
+        expected: isoDate(v.expEpoch),
+        status: v.status,
+        pod: v.pod,
+        ageDays: v.lrEpoch ? Math.max(0, Math.floor((Date.now() - v.lrEpoch) / 86400000)) : 0,
+      })),
     })
   }
 
   if (type === 'destination') {
-    const rows = await db.misRecord.groupBy({
-      by: ['destination'], where: { ...notDeleted, destination: { not: null } },
+    const raw = await db.misRecord.groupBy({
+      by: ['destination', 'measurement'], where: { ...notDeleted, destination: { not: null } },
       _count: true, _sum: { totalQuantityLtrs: true, bucket: true },
     })
-    return NextResponse.json({
-      type,
-      rows: rows
-        .map((r) => ({
-          destination: r.destination ?? '',
-          count: r._count,
-          qty: r._sum.totalQuantityLtrs ?? 0,
-          buckets: r._sum.bucket ?? 0,
-        }))
-        .sort((a, b) => b.qty - a.qty),
-    })
+    const acc = new Map<string, { destination: string; measurement: string; count: number; qty: number; buckets: number }>()
+    for (const r of raw) {
+      const measurement = normalizeMeasurement(r.measurement)
+      const key = `${r.destination ?? ''}\u0000${measurement}`
+      const cur = acc.get(key) ?? { destination: r.destination ?? '', measurement, count: 0, qty: 0, buckets: 0 }
+      cur.count += r._count
+      cur.qty += r._sum.totalQuantityLtrs ?? 0
+      cur.buckets += r._sum.bucket ?? 0
+      acc.set(key, cur)
+    }
+    return NextResponse.json({ type, rows: [...acc.values()].sort((a, b) => b.qty - a.qty) })
   }
 
   if (type === 'vendor') {
-    const rows = await db.misRecord.groupBy({
-      by: ['vendorName', 'routeCode2'], where: { ...notDeleted, vendorName: { not: null } },
+    const raw = await db.misRecord.groupBy({
+      by: ['vendorName', 'routeCode2', 'measurement'], where: { ...notDeleted, vendorName: { not: null } },
       _count: true, _sum: { totalQuantityLtrs: true },
     })
-    return NextResponse.json({
-      type,
-      rows: rows
-        .map((r) => ({
-          vendor: r.vendorName ?? '',
-          route: r.routeCode2 ?? '—',
-          count: r._count,
-          qty: r._sum.totalQuantityLtrs ?? 0,
-        }))
-        .sort((a, b) => b.qty - a.qty),
-    })
+    const acc = new Map<string, { vendor: string; route: string; measurement: string; count: number; qty: number }>()
+    for (const r of raw) {
+      const measurement = normalizeMeasurement(r.measurement)
+      const vendor = r.vendorName ?? ''
+      const routeVal = r.routeCode2 ?? '—'
+      const key = `${vendor}\u0000${routeVal}\u0000${measurement}`
+      const cur = acc.get(key) ?? { vendor, route: routeVal, measurement, count: 0, qty: 0 }
+      cur.count += r._count
+      cur.qty += r._sum.totalQuantityLtrs ?? 0
+      acc.set(key, cur)
+    }
+    return NextResponse.json({ type, rows: [...acc.values()].sort((a, b) => b.qty - a.qty) })
   }
 
   if (type === 'party') {
-    const rows = await db.misRecord.groupBy({
-      by: ['partyName'], where: { ...notDeleted, partyName: { not: null } },
+    const raw = await db.misRecord.groupBy({
+      by: ['partyName', 'measurement'], where: { ...notDeleted, partyName: { not: null } },
       _count: true, _sum: { totalQuantityLtrs: true },
     })
-    return NextResponse.json({
-      type,
-      rows: rows
-        .map((r) => ({ party: r.partyName ?? '', count: r._count, qty: r._sum.totalQuantityLtrs ?? 0 }))
-        .sort((a, b) => b.qty - a.qty),
-    })
+    const acc = new Map<string, { party: string; measurement: string; count: number; qty: number }>()
+    for (const r of raw) {
+      const measurement = normalizeMeasurement(r.measurement)
+      const party = r.partyName ?? ''
+      const key = `${party}\u0000${measurement}`
+      const cur = acc.get(key) ?? { party, measurement, count: 0, qty: 0 }
+      cur.count += r._count
+      cur.qty += r._sum.totalQuantityLtrs ?? 0
+      acc.set(key, cur)
+    }
+    return NextResponse.json({ type, rows: [...acc.values()].sort((a, b) => b.qty - a.qty) })
   }
 
   if (type === 'material') {
-    const rows = await db.misRecord.groupBy({
-      by: ['materialDetails'], where: { ...notDeleted, materialDetails: { not: null } },
+    const raw = await db.misRecord.groupBy({
+      by: ['materialDetails', 'measurement'], where: { ...notDeleted, materialDetails: { not: null } },
       _count: true, _sum: { totalQuantityLtrs: true, bucket: true },
     })
-    return NextResponse.json({
-      type,
-      rows: rows
-        .map((r) => ({
-          material: r.materialDetails ?? '',
-          count: r._count,
-          qty: r._sum.totalQuantityLtrs ?? 0,
-          buckets: r._sum.bucket ?? 0,
-        }))
-        .sort((a, b) => b.qty - a.qty),
-    })
+    const acc = new Map<string, { material: string; measurement: string; count: number; qty: number; buckets: number }>()
+    for (const r of raw) {
+      const measurement = normalizeMeasurement(r.measurement)
+      const material = r.materialDetails ?? ''
+      const key = `${material}\u0000${measurement}`
+      const cur = acc.get(key) ?? { material, measurement, count: 0, qty: 0, buckets: 0 }
+      cur.count += r._count
+      cur.qty += r._sum.totalQuantityLtrs ?? 0
+      cur.buckets += r._sum.bucket ?? 0
+      acc.set(key, cur)
+    }
+    return NextResponse.json({ type, rows: [...acc.values()].sort((a, b) => b.qty - a.qty) })
   }
 
   return NextResponse.json({ error: 'Unknown report type.' }, { status: 400 })

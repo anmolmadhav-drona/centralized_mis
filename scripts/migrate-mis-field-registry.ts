@@ -43,7 +43,7 @@ const FIELDS: FieldDefinition[] = [
   { key: 'materialDetails', name: 'MATERIAL DETAILS', display: 'Material Details', type: 'TEXT', width: 37.4 },
   { key: 'transporterName', name: 'TRANSPOTER NAME', display: 'Transporter Name', type: 'TEXT', width: 23.8, default: 'Drona Logitech' },
   { key: 'bucket', name: 'Bucket', display: 'Bucket', type: 'INTEGER', width: 12.7 },
-  { key: 'totalQuantityLtrs', name: 'TOTAL QUANTITY IN LTRS', display: 'Total Quantity (Ltrs)', type: 'INTEGER', width: 28.6 },
+  { key: 'totalQuantityLtrs', name: 'TOTAL QUANTITY', display: 'Total Quantity', type: 'INTEGER', width: 28.6 },
   { key: 'loadType', name: 'LOAD TYPE FTL/PTL', display: 'Load Type', type: 'TEXT', width: 22.9, default: 'PTL' },
   { key: 'expectedDeliveryDate', name: 'EXPECTED DELIVERY DATE', display: 'Expected Delivery Date', type: 'DATE', width: 29.1 },
   { key: 'actualDeliveryDate', name: 'ACTUAL DELIVERY DATE', display: 'Actual Delivery Date', type: 'DATE', width: 27.0 },

@@ -7,6 +7,7 @@ import type { FieldDef, ImportPreview, ImportFieldDiff, ImportRowAnalysis, Sessi
 import { getFieldMapForRole } from '@/lib/services/fields'
 import { coerceValue, importValuesEqual, type StoredValue } from '@/lib/services/values'
 import { computeRecordKeys } from '@/lib/services/business-key'
+import { normalizeMeasurement } from '@/lib/services/measurement'
 import { DERIVED_FIELD_KEYS } from '@/lib/services/delivery'
 const SYS_ID_HEADER = 'SYS_RECORD_ID'
 const SYS_VERSION_HEADER = 'SYS_VERSION'
@@ -169,6 +170,22 @@ export async function analyzeImportFile(buffer: Buffer, fileName: string, user: 
         values[field.fieldKey] = input // keep raw for display
       } else {
         values[field.fieldKey] = res.value
+      }
+    }
+    // ---- measurement: physical unit paired with the quantity magnitude ----
+    // Store the canonical unit (Liters/ltr/LTR → "LTR"); never fuzzy, never an
+    // assumed default. A quantity with no measurement is rejected as INVALID
+    // through the existing preview validation (no silent LTR).
+    {
+      const qty = values['totalQuantityLtrs']
+      const hasQty = qty != null && qty !== ''
+      const rawMeas = values['measurement']
+      const hasMeas = rawMeas != null && String(rawMeas).trim() !== ''
+      if (hasMeas) {
+        values['measurement'] = normalizeMeasurement(rawMeas)
+      } else {
+        values['measurement'] = null
+        if (hasQty) errors.push('Measurement is required when Total Quantity is present.')
       }
     }
     let duplicateId = false

@@ -58,30 +58,45 @@ ok('different invoice → different key', buildBusinessKey(1301, 'OTHER/1', 'ABC
 ok('party with separator char cannot inject fake key parts',
   buildBusinessKey(1, 'A', 'X\nY'), buildBusinessKey(1, 'A\nX', 'Y') === null ? 'safe' : buildBusinessKey(1, 'A', 'X\nY'))
 
-console.log('== Line key ==')
-ok('built', buildLineKey('DEF 1*20L', 50, 1000), 'DEF 1*20L\n50\n1000')
-ok('case-insensitive material', buildLineKey('def 1*20l', 50, 1000), 'DEF 1*20L\n50\n1000')
-ok('null material but qty present', buildLineKey(null, 50, 1000), '\n50\n1000')
-ok('all empty', buildLineKey(null, null, null), '\n\n')
+console.log('== Line key (now Material + Bucket + Qty + Measurement) ==')
+ok('built (measurement given)', buildLineKey('DEF 1*20L', 50, 1000, 'Liters'), 'DEF 1*20L\n50\n1000\nLTR')
+ok('case-insensitive material', buildLineKey('def 1*20l', 50, 1000, 'LTR'), 'DEF 1*20L\n50\n1000\nLTR')
+ok('null material but qty present', buildLineKey(null, 50, 1000, 'LTR'), '\n50\n1000\nLTR')
+ok('missing measurement → Unspecified token', buildLineKey('M', 50, 1000), 'M\n50\n1000\nUnspecified')
+ok('all empty', buildLineKey(null, null, null), '\n\n\nUnspecified')
 ok('never null', typeof buildLineKey(null, null, null) === 'string', true)
-ok('material part extraction', materialOfLineKey('DEF 1*20L\n50\n1000'), 'DEF 1*20L')
+ok('material part extraction', materialOfLineKey('DEF 1*20L\n50\n1000\nLTR'), 'DEF 1*20L')
 ok('material part of empty key', materialOfLineKey(''), '')
 ok('same material different qty → different line keys',
-  buildLineKey('M', 50, 1000) !== buildLineKey('M', 3, 60), true)
+  buildLineKey('M', 50, 1000, 'LTR') !== buildLineKey('M', 3, 60, 'LTR'), true)
+
+console.log('== Line key measurement identity ==')
+// Same material/bucket/qty, different UNIT → different identity (never merged)
+ok('100 LTR ≠ 100 KG', buildLineKey('Chemical', 10, 100, 'LTR') !== buildLineKey('Chemical', 10, 100, 'KG'), true)
+// Case/spacing variants of the SAME unit → identical identity
+ok('Liters/liters/Ltrs/ltr/LTR all collapse to one identity',
+  new Set([
+    buildLineKey('Chemical', 10, 100, 'Liters'),
+    buildLineKey('Chemical', 10, 100, 'liters'),
+    buildLineKey('Chemical', 10, 100, 'Ltrs'),
+    buildLineKey('Chemical', 10, 100, ' ltr '),
+    buildLineKey('Chemical', 10, 100, 'LTR'),
+  ]).size === 1, true)
+ok('LTR identity string is canonical', buildLineKey('Chemical', 10, 100, 'liters'), 'CHEMICAL\n10\n100\nLTR')
 
 console.log('== computeRecordKeys ==')
-const keys = computeRecordKeys({ lrNo: 1358, invoiceNumber: 'JHUSO26/433774', partyName: 'MS Magpie Filling Station', materialDetails: 'DEF 1*20L', bucket: 50, totalQuantityLtrs: 1000 })
+const keys = computeRecordKeys({ lrNo: 1358, invoiceNumber: 'JHUSO26/433774', partyName: 'MS Magpie Filling Station', materialDetails: 'DEF 1*20L', bucket: 50, totalQuantityLtrs: 1000, measurement: 'Liters' })
 ok('businessKey', keys.businessKey, '1358\nJHUSO26/433774\nMS MAGPIE FILLING STATION')
-ok('lineKey', keys.lineKey, 'DEF 1*20L\n50\n1000')
+ok('lineKey (measurement normalized in key)', keys.lineKey, 'DEF 1*20L\n50\n1000\nLTR')
 const partial = computeRecordKeys({ lrNo: 1358, partyName: 'X' })
-ok('missing invoice → businessKey null, lineKey still present', partial.businessKey === null && partial.lineKey === '\n\n', true)
+ok('missing invoice → businessKey null, lineKey still present', partial.businessKey === null && partial.lineKey === '\n\n\nUnspecified', true)
 
 console.log('== PTL multi-line reality (production baseline shape) ==')
 // LR 1358 carries 4 lines: two materials, each twice with different quantities
-const l1 = buildLineKey('TATA Motors HP Genuine Def - 1*20L', 50, 1000)
-const l2 = buildLineKey('TATA Motors HP Genuine Def - 4*5L', 20, 400)
-const l3 = buildLineKey('TATA Motors HP Genuine Def - 1*20L', 3, 60)
-const l4 = buildLineKey('TATA Motors HP Genuine Def - 4*5L', 2, 40)
+const l1 = buildLineKey('TATA Motors HP Genuine Def - 1*20L', 50, 1000, 'LTR')
+const l2 = buildLineKey('TATA Motors HP Genuine Def - 4*5L', 20, 400, 'LTR')
+const l3 = buildLineKey('TATA Motors HP Genuine Def - 1*20L', 3, 60, 'LTR')
+const l4 = buildLineKey('TATA Motors HP Genuine Def - 4*5L', 2, 40, 'LTR')
 ok('all four lines distinct', new Set([l1, l2, l3, l4]).size === 4, true)
 ok('same material appears with two quantities (needs bucket/qty in key)', l1 !== l3 && l2 !== l4, true)
 

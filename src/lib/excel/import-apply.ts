@@ -8,6 +8,7 @@ import type { ImportApplyResult, ImportRowAnalysis, SessionUser, FieldDef } from
 import { getFieldMapForRole, sqlColumnFor } from '@/lib/services/fields'
 import { coerceValue, valuesEqual, importValuesEqual, type StoredValue } from '@/lib/services/values'
 import { computeRecordKeys } from '@/lib/services/business-key'
+import { normalizeMeasurement } from '@/lib/services/measurement'
 import { writeAudit, type AuditEntryInput } from '@/lib/services/audit'
 import { emitRealtime } from '@/lib/services/realtime'
 import { computeDeliveryPatch, DERIVED_FIELD_KEYS } from '@/lib/services/delivery'
@@ -235,6 +236,9 @@ export async function applyImport(input: ConfirmInput, user: SessionUser, meta: 
     }
     // derived columns: never nulled from a file — the delivery patch re-derives
     dropNullDerived(core)
+    // measurement: store the canonical unit (idempotent — preview already
+    // normalized, but apply never trusts the payload)
+    if (typeof core.measurement === 'string') core.measurement = normalizeMeasurement(core.measurement)
 
     // identity may have been re-pointed by key matching — resolve by row.recordId
     const dbRec = await tx.misRecord.findUnique({ where: { id: row.recordId! } })
@@ -358,6 +362,9 @@ export async function applyImport(input: ConfirmInput, user: SessionUser, meta: 
     }
     // derived columns: never nulled from a file — the delivery patch re-derives
     dropNullDerived(core)
+    // measurement: store the canonical unit (idempotent — preview already
+    // normalized, but apply never trusts the payload)
+    if (typeof core.measurement === 'string') core.measurement = normalizeMeasurement(core.measurement)
 
     // composite business identity — carries the DB unique constraint
     const keys = computeRecordKeys(core)
@@ -396,43 +403,29 @@ export async function applyImport(input: ConfirmInput, user: SessionUser, meta: 
     return { ok: true }
   }
 
-  await db.$transaction(async (tx) => {
-    // 1. new rows (insert; the unique constraint is the race-safe final guard)
-    for (const idx of input.newRows) {
-      const row = byRowIndex.get(idx)
-      if (!row || row.kind !== 'NEW') continue
-      try {
-        await savepointWork(tx, `imp_new_${idx}`, () => createOneRow(tx, row))
-      } catch (err) {
-        if (err instanceof ConcurrentDuplicateError) {
-          result.duplicates++
-          result.skipped++
-          continue
-        }
-        throw err
-      }
-    }
-    // 2. changed rows (version-guarded updates that preserve the record id)
-    for (const idx of input.changedRows) {
-      const row = byRowIndex.get(idx)
-      if (!row || row.kind !== 'CHANGED' || !row.recordId) continue
-      try {
-        await savepointWork(tx, `imp_chg_${idx}`, () => applyOneRow(tx, row, false))
-      } catch (err) {
-        if (err instanceof ConcurrentDuplicateError) {
-          failRow(row, err.message)
-          continue
-        }
-        throw err
-      }
-    }
-    // 3. conflicts — only apply when user chose "use my value"
-    for (const row of rows) {
-      if (row.kind !== 'CONFLICT' || !row.recordId) continue
-      const resolution = input.resolutions[row.recordId]
-      if (resolution === 'mine') {
+  await db.$transaction(
+    async (tx) => {
+      // 1. new rows (insert; the unique constraint is the race-safe final guard)
+      for (const idx of input.newRows) {
+        const row = byRowIndex.get(idx)
+        if (!row || row.kind !== 'NEW') continue
         try {
-          await savepointWork(tx, `imp_cfl_${row.recordId}`, () => applyOneRow(tx, row, true))
+          await savepointWork(tx, `imp_new_${idx}`, () => createOneRow(tx, row))
+        } catch (err) {
+          if (err instanceof ConcurrentDuplicateError) {
+            result.duplicates++
+            result.skipped++
+            continue
+          }
+          throw err
+        }
+      }
+      // 2. changed rows (version-guarded updates that preserve the record id)
+      for (const idx of input.changedRows) {
+        const row = byRowIndex.get(idx)
+        if (!row || row.kind !== 'CHANGED' || !row.recordId) continue
+        try {
+          await savepointWork(tx, `imp_chg_${idx}`, () => applyOneRow(tx, row, false))
         } catch (err) {
           if (err instanceof ConcurrentDuplicateError) {
             failRow(row, err.message)
@@ -440,43 +433,62 @@ export async function applyImport(input: ConfirmInput, user: SessionUser, meta: 
           }
           throw err
         }
-        result.conflictsResolvedMine++
-      } else {
-        result.conflictsResolvedTheirs++
-        result.skipped++
       }
-    }
-    // 4. deletions (explicit opt-in only — records missing from the file are NEVER deleted)
-    for (const id of input.deletions) {
-      const rec = await tx.misRecord.findUnique({ where: { id } })
-      if (!rec || rec.deletedAt) continue
-      // businessKey released on delete — must not block re-importing this line
-      await tx.misRecord.update({ where: { id }, data: { deletedAt: new Date(), updatedBy: user.name, businessKey: null } })
+      // 3. conflicts — only apply when user chose "use my value"
+      for (const row of rows) {
+        if (row.kind !== 'CONFLICT' || !row.recordId) continue
+        const resolution = input.resolutions[row.recordId]
+        if (resolution === 'mine') {
+          try {
+            await savepointWork(tx, `imp_cfl_${row.recordId}`, () => applyOneRow(tx, row, true))
+          } catch (err) {
+            if (err instanceof ConcurrentDuplicateError) {
+              failRow(row, err.message)
+              continue
+            }
+            throw err
+          }
+          result.conflictsResolvedMine++
+        } else {
+          result.conflictsResolvedTheirs++
+          result.skipped++
+        }
+      }
+      // 4. deletions (explicit opt-in only — records missing from the file are NEVER deleted)
+      for (const id of input.deletions) {
+        const rec = await tx.misRecord.findUnique({ where: { id } })
+        if (!rec || rec.deletedAt) continue
+        // businessKey released on delete — must not block re-importing this line
+        await tx.misRecord.update({ where: { id }, data: { deletedAt: new Date(), updatedBy: user.name, businessKey: null } })
+        await tx.auditLog.createMany({
+          data: [auditRow({
+            userId: user.id, userName: user.name, action: 'RECORD_DELETE', entity: 'RECORD', entityId: id,
+            oldValue: `LR ${rec.lrNo ?? '—'} • ${rec.partyName ?? ''}`.trim(),
+            source: 'EXCEL', ip: meta.ip, userAgent: meta.userAgent,
+          })],
+        })
+        result.deleted++
+        result.applied++
+      }
+      // 5. rows classified UNCHANGED / DUPLICATE at preview — not written.
+      //    In-file duplicates are reported in the result so the summary matches
+      //    what the preview promised (concurrent-import dups add on below).
+      result.unchanged += rows.filter((r) => r.kind === 'UNCHANGED').length
+      result.duplicates += rows.filter((r) => r.kind === 'DUPLICATE').length
+      result.skipped += rows.filter((r) => r.kind === 'UNCHANGED' || r.kind === 'DUPLICATE').length
+      // 6. import summary audit entry
       await tx.auditLog.createMany({
         data: [auditRow({
-          userId: user.id, userName: user.name, action: 'RECORD_DELETE', entity: 'RECORD', entityId: id,
-          oldValue: `LR ${rec.lrNo ?? '—'} • ${rec.partyName ?? ''}`.trim(),
+          userId: user.id, userName: user.name, action: 'IMPORT', entity: 'IMPORT', entityId: job.id,
+          newValue: `${job.fileName} — ${result.created} created, ${result.updated} updated, ${result.unchanged} unchanged, ${result.duplicates} duplicates, ${result.failed} failed, ${result.deleted} deleted`,
           source: 'EXCEL', ip: meta.ip, userAgent: meta.userAgent,
         })],
       })
-      result.deleted++
-      result.applied++
-    }
-    // 5. rows classified UNCHANGED / DUPLICATE at preview — not written.
-    //    In-file duplicates are reported in the result so the summary matches
-    //    what the preview promised (concurrent-import dups add on below).
-    result.unchanged += rows.filter((r) => r.kind === 'UNCHANGED').length
-    result.duplicates += rows.filter((r) => r.kind === 'DUPLICATE').length
-    result.skipped += rows.filter((r) => r.kind === 'UNCHANGED' || r.kind === 'DUPLICATE').length
-    // 6. import summary audit entry
-    await tx.auditLog.createMany({
-      data: [auditRow({
-        userId: user.id, userName: user.name, action: 'IMPORT', entity: 'IMPORT', entityId: job.id,
-        newValue: `${job.fileName} — ${result.created} created, ${result.updated} updated, ${result.unchanged} unchanged, ${result.duplicates} duplicates, ${result.failed} failed, ${result.deleted} deleted`,
-        source: 'EXCEL', ip: meta.ip, userAgent: meta.userAgent,
-      })],
-    })
-  })
+    },
+    {
+      maxWait: 10_000,
+      timeout: 60_000,
+    },)
 
   await db.importJob.update({
     where: { id: job.id },

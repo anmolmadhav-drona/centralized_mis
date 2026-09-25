@@ -6,6 +6,12 @@
 //
 // LINE KEY (line discriminator):
 //   normalize(Material Details) + SEP + bucket + SEP + totalQuantityLtrs
+//     + SEP + normalizeMeasurement(measurement)
+// Quantity is a MAGNITUDE paired with a unit (measurement): the same
+// magnitude in different units is a different line — "Chemical|10|100|LTR" and
+// "Chemical|10|100|KG" must NOT collapse to one identity. Measurement is
+// canonicalized (case/space folded, alias-mapped) via normalizeMeasurement so
+// the line key stays deterministic and normalization-safe.
 // PTL shipments legitimately carry MULTIPLE lines under one business key
 // (same LR + Invoice + Party, different material/quantity) — 44 such groups
 // exist in the production baseline. The line key is what makes each stored
@@ -14,7 +20,9 @@
 //
 // This module is intentionally dependency-free (no db, no Next): it is used
 // by API routes, the import pipeline, the record mutations, backfill scripts
-// and unit tests alike.
+// and unit tests alike. (normalizeMeasurement is likewise pure.)
+
+import { normalizeMeasurement } from './measurement'
 
 /** field separator — whitespace collapse removes \n from every part, so it can never occur inside one */
 const SEP = '\n'
@@ -26,6 +34,7 @@ export interface RecordKeyValues {
   materialDetails?: unknown
   bucket?: unknown
   totalQuantityLtrs?: unknown
+  measurement?: unknown
 }
 
 export interface RecordKeys {
@@ -106,20 +115,33 @@ export function buildBusinessKey(lrNo: unknown, invoiceNumber: unknown, partyNam
 }
 
 /**
- * Line key = Material + Bucket + Quantity, normalized. Discriminates the
- * multiple lines of a PTL multi-drop shipment. Always returns a string
- * (empty parts are allowed) so it can participate in the composite unique
- * constraint together with a non-null businessKey.
+ * Line key = Material + Bucket + Quantity + Measurement, normalized.
+ * Discriminates the multiple lines of a PTL multi-drop shipment AND keeps
+ * same-magnitude/different-unit lines distinct (100 LTR ≠ 100 KG). The
+ * measurement part is canonicalized with normalizeMeasurement (a missing unit
+ * resolves to the same canonical UNSPECIFIED token, never an assumed LTR).
+ * Always returns a string (empty parts are allowed) so it can participate in
+ * the composite unique constraint together with a non-null businessKey.
  */
-export function buildLineKey(materialDetails: unknown, bucket: unknown, totalQuantityLtrs: unknown): string {
-  return [normalizeMaterial(materialDetails), numPart(bucket), numPart(totalQuantityLtrs)].join(SEP)
+export function buildLineKey(
+  materialDetails: unknown,
+  bucket: unknown,
+  totalQuantityLtrs: unknown,
+  measurement?: unknown,
+): string {
+  return [
+    normalizeMaterial(materialDetails),
+    numPart(bucket),
+    numPart(totalQuantityLtrs),
+    normalizeMeasurement(measurement),
+  ].join(SEP)
 }
 
 /** Compute both keys from a values map (record row or coerced import row). */
 export function computeRecordKeys(v: RecordKeyValues): RecordKeys {
   return {
     businessKey: buildBusinessKey(v.lrNo, v.invoiceNumber, v.partyName),
-    lineKey: buildLineKey(v.materialDetails, v.bucket, v.totalQuantityLtrs),
+    lineKey: buildLineKey(v.materialDetails, v.bucket, v.totalQuantityLtrs, v.measurement),
   }
 }
 

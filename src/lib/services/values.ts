@@ -15,7 +15,17 @@ export function parseDateInput(raw: unknown, keepTime = false): Date | null {
   if (raw instanceof Date) {
     if (isNaN(raw.getTime())) return null
     if (keepTime) return new Date(raw.getTime())
-    return new Date(Date.UTC(raw.getUTCFullYear(), raw.getUTCMonth(), raw.getUTCDate(), 0, 0, 0))
+    // DATE fields: recover the intended CALENDAR day the Excel cell shows.
+    // SheetJS (cellDates) yields the date at LOCAL midnight, but its base-date
+    // float rounding can land a few seconds before midnight — e.g. an IST cell
+    // for 15-Sep parses as 14-Sep 23:59:5x local (14-Sep 18:29 UTC), so BOTH
+    // local- and UTC-component reads fall on the previous day. Convert to the
+    // local wall-clock instant and round to the nearest whole day, then store
+    // that day as UTC midnight (stable, TZ-independent round-trip).
+    const DAY_MS = 86_400_000
+    const localWallClockMs = raw.getTime() - raw.getTimezoneOffset() * 60_000
+    const roundedDayMs = Math.round(localWallClockMs / DAY_MS) * DAY_MS
+    return new Date(roundedDayMs)
   }
   if (typeof raw === 'number' && Number.isFinite(raw)) {
     // Excel serial date (days since 1899-12-30)

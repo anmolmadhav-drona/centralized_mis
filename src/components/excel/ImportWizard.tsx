@@ -751,7 +751,8 @@ function NewTable({ rows, selected, onToggle }: {
             <th className="px-3 py-2 font-medium">LR No</th>
             <th className="px-3 py-2 font-medium">Party</th>
             <th className="px-3 py-2 font-medium">Destination</th>
-            <th className="px-3 py-2 font-medium text-right">Qty (L)</th>
+            <th className="px-3 py-2 font-medium text-right">Qty</th>
+            <th className="px-3 py-2 font-medium">Measurement</th>
             <th className="px-3 py-2 font-medium">Note</th>
           </tr>
         </thead>
@@ -766,6 +767,7 @@ function NewTable({ rows, selected, onToggle }: {
               <td className="max-w-[220px] truncate px-3 py-2">{String(r.values.partyName ?? '—')}</td>
               <td className="px-3 py-2">{String(r.values.destination ?? '—')}</td>
               <td className="px-3 py-2 text-right tabular-nums">{String(r.values.totalQuantityLtrs ?? '—')}</td>
+              <td className="px-3 py-2">{r.values.measurement ? String(r.values.measurement) : '—'}</td>
               <td className="px-3 py-2">
                 {r.businessKey == null ? (
                   <span className="badge-tone badge-warning" title="Missing LR No, Invoice or Party — this row cannot be checked for duplicates.">

@@ -101,6 +101,7 @@ export const CORE_COLUMNS: Record<string, string> = {
   transporterName: 'transporterName',
   bucket: 'bucket',
   totalQuantityLtrs: 'totalQuantityLtrs',
+  measurement: 'measurement',
   loadType: 'loadType',
   expectedDeliveryDate: 'expectedDeliveryDate',
   actualDeliveryDate: 'actualDeliveryDate',

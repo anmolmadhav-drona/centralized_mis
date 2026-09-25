@@ -60,7 +60,9 @@ const FIELDS: Array<{
   { key: 'materialDetails', name: 'MATERIAL DETAILS', display: 'Material Details', type: 'TEXT', width: 37.4 },
   { key: 'transporterName', name: 'TRANSPOTER NAME', display: 'Transporter Name', type: 'TEXT', width: 23.8, default: 'Drona Logitech' },
   { key: 'bucket', name: 'Bucket', display: 'Bucket', type: 'INTEGER', width: 12.7 },
-  { key: 'totalQuantityLtrs', name: 'TOTAL QUANTITY IN LTRS', display: 'Total Quantity (Ltrs)', type: 'INTEGER', width: 28.6 },
+  { key: 'totalQuantityLtrs', name: 'TOTAL QUANTITY', display: 'Total Quantity', type: 'INTEGER', width: 28.6 },
+  // Unit paired with Total Quantity (LTR/KG/PCS); the historical NPL baseline is liters.
+  { key: 'measurement', name: 'Measurement', display: 'Measurement', type: 'TEXT', width: 16 },
   { key: 'loadType', name: 'LOAD TYPE FTL/PTL', display: 'Load Type', type: 'TEXT', width: 22.9, default: 'PTL' },
   { key: 'expectedDeliveryDate', name: 'EXPECTED DELIVERY DATE', display: 'Expected Delivery Date', type: 'DATE', width: 29.1 },
   { key: 'actualDeliveryDate', name: 'ACTUAL DELIVERY DATE', display: 'Actual Delivery Date', type: 'DATE', width: 27.0 },
@@ -198,6 +200,7 @@ async function seedRecords() {
       transporterName: get(9) as string | null,
       bucket: int(10),
       totalQuantityLtrs: int(11),
+      measurement: int(11) == null ? null : 'LTR', // historical NPL baseline is liters
       loadType: get(12) as string | null,
       expectedDeliveryDate: date(13),
       actualDeliveryDate: date(14),
@@ -229,6 +232,7 @@ async function seedRecords() {
       materialDetails: rec.materialDetails,
       bucket: rec.bucket,
       totalQuantityLtrs: rec.totalQuantityLtrs,
+      measurement: rec.measurement,
     })
     // Delivery-derived columns — identical runtime derivation
     // (src/lib/services/delivery.ts), matching the historical database.

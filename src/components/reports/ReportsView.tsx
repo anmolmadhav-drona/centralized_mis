@@ -20,7 +20,7 @@ import { can } from '@/lib/rbac'
 type ReportType = 'pending' | 'destination' | 'vendor' | 'party' | 'material'
 
 interface PendingRow {
-  party: string; destination: string; lrNo: number; qty: number; lines: number
+  party: string; destination: string; lrNo: number; qty: number; measurement: string; lines: number
   lrDate: string | null; expected: string | null; status: string; pod: string; ageDays: number
 }
 interface GroupRow { [k: string]: string | number }
@@ -131,6 +131,7 @@ export default function ReportsView() {
                       <TableHead>Destination</TableHead>
                       <TableHead className="text-right">LR No</TableHead>
                       <TableHead className="text-right">Quantity</TableHead>
+                      <TableHead>Measurement</TableHead>
                       <TableHead className="text-right">Lines</TableHead>
                       <TableHead>LR Date</TableHead>
                       <TableHead>Expected</TableHead>
@@ -142,7 +143,8 @@ export default function ReportsView() {
                       <TableHead>{tab === 'vendor' ? 'Vendor' : tab === 'party' ? 'Party Name' : tab === 'material' ? 'Material' : 'Destination'}</TableHead>
                       {tab === 'vendor' && <TableHead>Route</TableHead>}
                       <TableHead className="text-right">Records</TableHead>
-                      <TableHead className="text-right">Quantity (L)</TableHead>
+                      <TableHead className="text-right">Quantity</TableHead>
+                      <TableHead>Measurement</TableHead>
                       {(tab === 'destination' || tab === 'material') && <TableHead className="text-right">Buckets</TableHead>}
                     </TableRow>
                   )}
@@ -155,6 +157,7 @@ export default function ReportsView() {
                           <TableCell>{r.destination}</TableCell>
                           <TableCell className="text-right tabular-nums">{r.lrNo}</TableCell>
                           <TableCell className="text-right font-medium tabular-nums">{fmtNum(r.qty)}</TableCell>
+                          <TableCell>{String(r.measurement ?? '—')}</TableCell>
                           <TableCell className="text-right tabular-nums text-muted-foreground">{r.lines}</TableCell>
                           <TableCell className="whitespace-nowrap">{r.lrDate ? fmtDate(r.lrDate) : '—'}</TableCell>
                           <TableCell className="whitespace-nowrap">{r.expected ? fmtDate(r.expected) : '—'}</TableCell>
@@ -174,6 +177,7 @@ export default function ReportsView() {
                           {tab === 'vendor' && <TableCell>{String(r.route)}</TableCell>}
                           <TableCell className="text-right tabular-nums">{fmtNum(r.count)}</TableCell>
                           <TableCell className="text-right font-medium tabular-nums">{fmtNum(r.qty)}</TableCell>
+                          <TableCell>{String(r.measurement ?? '—')}</TableCell>
                           {(tab === 'destination' || tab === 'material') && (
                             <TableCell className="text-right tabular-nums text-muted-foreground">{fmtNum(r.buckets)}</TableCell>
                           )}

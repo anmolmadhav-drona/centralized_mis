@@ -24,7 +24,7 @@ function isUniqueViolation(err: unknown): boolean {
 
 /** Field keys whose values feed the composite business/line identity. */
 const IDENTITY_FIELD_KEYS = new Set([
-  'lrNo', 'invoiceNumber', 'partyName', 'materialDetails', 'bucket', 'totalQuantityLtrs', 'measurement',
+  'lrNo', 'invoiceNumber', 'partyName', 'materialDetails', 'bucket', 'totalQuantity', 'measurement',
 ])
 
 function identityConflictError(values: Record<string, unknown>): ApiError {

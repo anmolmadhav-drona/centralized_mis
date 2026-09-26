@@ -1,12 +1,12 @@
 'use client'
 
 // Drona Logitech — Centralized MIS sign-in experience.
-// Split entry staged around the company's original DRONA LOGITECH logo
-// artwork (transparent, never on a plate): a luminous near-white brand stage
-// on the left, the warm workspace form on the right. Self-signup has been
-// retired — accounts are provisioned by administrators from Users & Settings.
-// All auth logic unchanged (JWT cookie session).
-import { useState } from 'react'
+// A professional logistics hero: the company truck/road video plays quietly
+// behind the brand lockup on the left, with a clean white sign-in card on the
+// right. Self-signup has been retired — accounts are provisioned by
+// administrators from Users & Settings. All auth logic is unchanged (Auth.js
+// credentials → JWT cookie session); this file is UI only.
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { motion, useReducedMotion } from 'framer-motion'
@@ -14,6 +14,7 @@ import { Eye, EyeOff, KeyRound, Loader2, Lock, Mail, LogIn } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -26,12 +27,17 @@ import { apiGet, ApiClientError } from '@/lib/client/api'
 import { useAppStore } from '@/lib/client/store'
 import { useQueryClient } from '@tanstack/react-query'
 import type { SessionUser } from '@/lib/types'
-import { BrandGlow, DronaArcs, DronaFullLogo } from '@/components/brand/DronaLogo'
+import { DronaFullLogo } from '@/components/brand/DronaLogo'
+
+// Purely client-side convenience for the "Remember me" control — it remembers
+// the last email for prefill only. It never touches auth, sessions or cookies.
+const REMEMBER_EMAIL_KEY = 'npl-login-email'
 
 export default function LoginView() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [remember, setRemember] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [forgotOpen, setForgotOpen] = useState(false)
@@ -41,8 +47,21 @@ export default function LoginView() {
   const qc = useQueryClient()
   const router = useRouter()
 
-  // ---- reduced motion: honor the OS preference for the stage entrance ----
+  // ---- reduced motion: honor the OS preference for the entrance ----
   const reduced = useReducedMotion()
+
+  // Prefill a remembered email (client convenience only — see note above).
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(REMEMBER_EMAIL_KEY)
+      if (saved) {
+        setEmail(saved)
+        setRemember(true)
+      }
+    } catch {
+      /* storage unavailable (private mode / blocked) — ignore */
+    }
+  }, [])
 
   const submit = async (e?: React.FormEvent, creds?: { email: string; password: string }) => {
     e?.preventDefault()
@@ -69,6 +88,13 @@ export default function LoginView() {
         setError('Unable to sign in. Please try again.')
         return
       }
+      // remember (or forget) the email for next time — prefill convenience only
+      try {
+        if (remember) window.localStorage.setItem(REMEMBER_EMAIL_KEY, em)
+        else window.localStorage.removeItem(REMEMBER_EMAIL_KEY)
+      } catch {
+        /* storage unavailable — ignore */
+      }
       setUser(user)
       qc.setQueryData(['session'], { user })
       toast.success(`Welcome back, ${user.name.split(' ')[0]}`, {
@@ -83,150 +109,160 @@ export default function LoginView() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background lg:flex-row">
-      {/* ---- brand stage — the original Drona Logitech logo artwork ---- */}
-      <div className="relative flex flex-col border-b border-border/60 bg-[#FDFDFD] dark:bg-sidebar dark:border-sidebar-border lg:w-[52%] lg:border-b-0 lg:overflow-hidden">
-        {/* ambient texture — the fingerprint arcs, echoing the emblem's spiral */}
-        <DronaArcs
-          width={420}
-          height={420}
-          className="pointer-events-none absolute -right-24 -top-20 hidden text-brand-brown/15 dark:text-sidebar-foreground/10 lg:block"
-        />
-        {/* stage chrome: identity header + footer frame the artwork */}
-        <div className="relative z-10 flex items-center justify-between px-6 pt-5 sm:px-10 sm:pt-6 lg:px-12 lg:pt-10">
-          <div>
-            <p className="font-display text-[15px] font-extrabold tracking-tight text-brand-charcoal dark:text-white">
-              DRONA <span className="text-brand-red">LOGITECH</span>
-            </p>
-            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.34em] text-brand-brown/80 dark:text-sidebar-foreground/60">
-              Centralized MIS
-            </p>
-          </div>
-        </div>
+    <div className="relative flex min-h-screen w-full flex-col overflow-hidden bg-brand-charcoal">
+      {/* ---- background hero video — subtle logistics ambience ---- */}
+      <video
+        className="absolute inset-0 h-full w-full object-cover"
+        src="/hero-video.mp4"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+      {/* readability wash — keeps the truck/road visible while text stays legible.
+          Stronger on the left (branding) on desktop; a gentle overall dim on mobile. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-black/45 lg:bg-gradient-to-r lg:from-black/70 lg:via-black/40 lg:to-black/15"
+      />
 
-        {/* the artwork itself — transparent, placed directly on the stage */}
-        <div className="relative flex flex-1 items-center justify-center px-6 py-5 sm:px-10 sm:py-7 lg:px-12 lg:py-10">
-          <motion.div
-            initial={reduced ? false : { opacity: 0, y: 14, scale: 0.985 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.4, ease: 'easeOut' }}
-            className="relative flex w-full max-w-[680px] items-center justify-center"
-          >
-            {/* faint warm-gold halo — only on the charcoal stage */}
-            <BrandGlow
-              width={520}
-              height={300}
-              intensity={0.12}
-              className="left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 dark:opacity-100"
+      {/* ---- content ---- */}
+      <div className="relative z-10 flex min-h-screen flex-col">
+        <main className="flex flex-1 flex-col lg:flex-row lg:items-stretch">
+          {/* brand / hero side */}
+          <section className="flex flex-col items-center gap-5 px-6 pt-12 text-center sm:pt-16 lg:flex-1 lg:items-start lg:justify-center lg:px-16 lg:pt-0 lg:text-left">
+            <DronaFullLogo
+              onDark
+              eager
+              width={440}
+              className="h-auto w-[220px] drop-shadow-[0_2px_10px_rgba(0,0,0,0.35)] sm:w-[280px] lg:w-[420px]"
             />
-            <DronaFullLogo width={680} eager className="relative h-auto w-full dark:hidden" />
-            <DronaFullLogo onDark width={680} eager className="relative hidden h-auto w-full dark:block" />
-          </motion.div>
-          {/* for screen readers: the brand message as text */}
-          <span className="sr-only">Drona Logitech — Experiencing Togetherness.</span>
-        </div>
+            <div>
+              <h1 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+                Centralized MIS
+              </h1>
+              <p className="mt-2 text-base font-medium text-white/85 sm:text-lg">
+                Experiencing Togetherness
+              </p>
+              <p className="mx-auto mt-4 hidden max-w-md text-sm leading-relaxed text-white/70 lg:mx-0 lg:block">
+                One connected workspace for every shipment, delivery and report — accurate,
+                live and shared across the team.
+              </p>
+            </div>
+            <span className="sr-only">Drona Logitech — Experiencing Togetherness.</span>
+          </section>
 
-        <p className="relative z-10 hidden px-12 pb-8 text-xs text-brand-brown/50 dark:text-sidebar-foreground/55 lg:block">
+          {/* sign-in card side */}
+          <section className="flex items-center justify-center px-6 pb-12 pt-8 sm:px-10 lg:w-[560px] lg:px-14 lg:py-0">
+            <motion.div
+              initial={reduced ? false : { opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              className="w-full max-w-md rounded-2xl border border-black/5 bg-white p-6 shadow-2xl sm:p-8 dark:border-white/10 dark:bg-card"
+            >
+              <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">Sign in</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Use your Drona Logitech account to continue.
+              </p>
+
+              <form onSubmit={submit} className="mt-6 space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="you@dronalogitech.com"
+                      className="pl-9"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      placeholder="••••••••"
+                      className="pl-9 pr-10"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={loading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      disabled={loading}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-muted-foreground">
+                    <Checkbox
+                      checked={remember}
+                      onCheckedChange={(v) => setRemember(v === true)}
+                      disabled={loading}
+                      aria-label="Remember me"
+                    />
+                    Remember me
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotEmail(email)
+                      setForgotOpen(true)
+                    }}
+                    className="text-[13px] font-medium text-brand-red underline-offset-4 transition-colors hover:underline focus-visible:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+
+                {error && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-md border border-destructive/30 bg-destructive/8 px-3 py-2 text-[13px] text-destructive"
+                    role="alert"
+                  >
+                    {error}
+                  </motion.p>
+                )}
+
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+                  Sign in to Centralized MIS
+                </Button>
+              </form>
+
+              <p className="mt-5 text-center text-[13px] leading-relaxed text-muted-foreground">
+                Accounts are provisioned by your administrator.
+                <br />
+                Need access? Request it from the MIS team.
+              </p>
+            </motion.div>
+          </section>
+        </main>
+
+        {/* ---- subtle footer ---- */}
+        <footer className="relative z-10 px-6 pb-6 text-center text-xs text-white/60 sm:px-10">
           © {new Date().getFullYear()} Drona Logitech · Centralized MIS · Internal use only
-        </p>
-      </div>
-
-      {/* ---- form panel — the workspace ---- */}
-      <div className="relative flex flex-1 items-center justify-center p-6 sm:p-10">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
-          className="w-full max-w-sm"
-        >
-          <h2 className="font-display text-xl font-bold tracking-tight">Sign in</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Use your Drona Logitech account to continue.</p>
-
-          <form onSubmit={submit} className="mt-7 space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@dronalogitech.com"
-                  className="pl-9"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  className="pl-9 pr-10"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={loading}
-                />
-
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  disabled={loading}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {error && (
-              <motion.p
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="rounded-md border border-destructive/30 bg-destructive/8 px-3 py-2 text-[13px] text-destructive"
-                role="alert"
-              >
-                {error}
-              </motion.p>
-            )}
-
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
-              Sign in to Centralized MIS
-            </Button>
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  setForgotEmail(email)
-                  setForgotOpen(true)
-                }}
-                className="text-[13px] font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground focus-visible:underline"
-              >
-                Forgot password?
-              </button>
-            </div>
-          </form>
-
-          <p className="mt-5 text-center text-[13px] leading-relaxed text-muted-foreground">
-            Accounts are provisioned by your administrator.
-            <br />
-            Need access? Request it from the MIS team.
-          </p>
-
-        </motion.div>
+        </footer>
       </div>
 
       {/* ---- forgot password — anti-enumeration by design: the response is

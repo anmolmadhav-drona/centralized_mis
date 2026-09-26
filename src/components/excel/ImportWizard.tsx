@@ -125,9 +125,9 @@ export default function ImportWizard({ onFinished }: { onFinished: () => void })
       const s = v == null ? '' : String(v)
       return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
     }
-    const header = 'Excel Row,LR No,Invoice Number,Party Name,Reason'
+    const header = 'Sheet,Excel Row,LR No,Invoice Number,Party Name,Reason'
     const body = result.failedRows.map((f) =>
-      [f.rowIndex, f.lrNo ?? '', f.invoiceNumber ?? '', f.partyName ?? '', f.reason].map(esc).join(','),
+      [f.sourceSheet, f.rowIndex, f.lrNo ?? '', f.invoiceNumber ?? '', f.partyName ?? '', f.reason].map(esc).join(','),
     )
     const blob = new Blob([`${header}\n${body.join('\n')}\n`], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -144,6 +144,17 @@ export default function ImportWizard({ onFinished }: { onFinished: () => void })
   const invalidList = preview?.rows.filter((r) => r.kind === 'INVALID') || []
   const duplicateList = preview?.rows.filter((r) => r.kind === 'DUPLICATE') || []
   const unresolvedConflicts = conflictRows.filter((r) => r.recordId && !resolutions[r.recordId]).length
+
+  // multi-sheet metadata: only surface the "Sheet" column when a workbook
+  // actually spans more than one MIS worksheet (single-sheet UI is unchanged).
+  const multiSheet = useMemo(
+    () => new Set((preview?.rows ?? []).map((r) => r.sourceSheet)).size > 1,
+    [preview],
+  )
+  const rowByIndex = useMemo(
+    () => new Map((preview?.rows ?? []).map((r) => [r.rowIndex, r])),
+    [preview],
+  )
 
   const plannedChanges = useMemo(() => {
     if (!preview) return 0
@@ -292,6 +303,7 @@ export default function ImportWizard({ onFinished }: { onFinished: () => void })
                     <table className="w-full text-[13px]">
                       <thead className="sticky top-0 bg-muted/95">
                         <tr className="border-b text-left">
+                          {multiSheet && <th className="px-3 py-2 font-medium">Sheet</th>}
                           <th className="px-3 py-2 font-medium">Excel row</th>
                           <th className="px-3 py-2 font-medium">LR No</th>
                           <th className="px-3 py-2 font-medium">Invoice</th>
@@ -301,7 +313,8 @@ export default function ImportWizard({ onFinished }: { onFinished: () => void })
                       </thead>
                       <tbody>
                         {result.failedRows.map((f, i) => (
-                          <tr key={`${f.rowIndex}-${i}`} className="border-b last:border-0">
+                          <tr key={`${f.sourceSheet}-${f.rowIndex}-${i}`} className="border-b last:border-0">
+                            {multiSheet && <td className="px-3 py-2">{f.sourceSheet}</td>}
                             <td className="px-3 py-2 tabular-nums">{f.rowIndex}</td>
                             <td className="px-3 py-2 tabular-nums font-medium">{String(f.lrNo ?? '—')}</td>
                             <td className="max-w-[160px] truncate px-3 py-2">{String(f.invoiceNumber ?? '—')}</td>
@@ -402,6 +415,7 @@ export default function ImportWizard({ onFinished }: { onFinished: () => void })
                 <CardContent className="p-0">
                   <ChangeTable
                     rows={changedList}
+                    showSheet={multiSheet}
                     selected={changedRows}
                     onToggle={(idx) => {
                       setChangedRows((prev) => {
@@ -464,6 +478,7 @@ export default function ImportWizard({ onFinished }: { onFinished: () => void })
                 <CardContent className="p-0">
                   <NewTable
                     rows={newList}
+                    showSheet={multiSheet}
                     selected={newRows}
                     onToggle={(idx) => {
                       setNewRows((prev) => {
@@ -490,6 +505,7 @@ export default function ImportWizard({ onFinished }: { onFinished: () => void })
                     <table className="w-full text-[13px]">
                       <thead className="sticky top-0 bg-muted/95">
                         <tr className="border-b text-left">
+                          {multiSheet && <th className="px-3 py-2 font-medium">Sheet</th>}
                           <th className="px-3 py-2 font-medium">Excel row</th>
                           <th className="px-3 py-2 font-medium">LR No</th>
                           <th className="px-3 py-2 font-medium">Party</th>
@@ -499,7 +515,8 @@ export default function ImportWizard({ onFinished }: { onFinished: () => void })
                       <tbody>
                         {invalidList.map((r) => (
                           <tr key={r.rowIndex} className="border-b last:border-0">
-                            <td className="px-3 py-2 tabular-nums">{r.rowIndex}</td>
+                            {multiSheet && <td className="px-3 py-2">{r.sourceSheet}</td>}
+                            <td className="px-3 py-2 tabular-nums">{r.excelRow}</td>
                             <td className="px-3 py-2 tabular-nums">{String(r.values.lrNo ?? '—')}</td>
                             <td className="max-w-[220px] truncate px-3 py-2">{String(r.values.partyName ?? '—')}</td>
                             <td className="px-3 py-2">
@@ -530,6 +547,7 @@ export default function ImportWizard({ onFinished }: { onFinished: () => void })
                     <table className="w-full text-[13px]">
                       <thead className="sticky top-0 bg-muted/95">
                         <tr className="border-b text-left">
+                          {multiSheet && <th className="px-3 py-2 font-medium">Sheet</th>}
                           <th className="px-3 py-2 font-medium">Excel row</th>
                           <th className="px-3 py-2 font-medium">LR No</th>
                           <th className="px-3 py-2 font-medium">Party</th>
@@ -539,13 +557,18 @@ export default function ImportWizard({ onFinished }: { onFinished: () => void })
                         </tr>
                       </thead>
                       <tbody>
-                        {duplicateList.map((r) => (
+                        {duplicateList.map((r) => {
+                          const first = r.duplicateOfRow != null ? rowByIndex.get(r.duplicateOfRow) : undefined
+                          return (
                           <tr key={r.rowIndex} className="border-b last:border-0">
-                            <td className="px-3 py-2 tabular-nums">{r.rowIndex}</td>
+                            {multiSheet && <td className="px-3 py-2">{r.sourceSheet}</td>}
+                            <td className="px-3 py-2 tabular-nums">{r.excelRow}</td>
                             <td className="px-3 py-2 tabular-nums font-medium">{String(r.values.lrNo ?? '—')}</td>
                             <td className="max-w-[220px] truncate px-3 py-2">{String(r.values.partyName ?? '—')}</td>
                             <td className="max-w-[160px] truncate px-3 py-2">{String(r.values.invoiceNumber ?? '—')}</td>
-                            <td className="px-3 py-2 tabular-nums text-muted-foreground">row {r.duplicateOfRow}</td>
+                            <td className="px-3 py-2 tabular-nums text-muted-foreground">
+                              {first ? `${multiSheet ? `${first.sourceSheet} · ` : ''}row ${first.excelRow}` : '—'}
+                            </td>
                             <td className="px-3 py-2">
                               {r.duplicateConflicting ? (
                                 <span className="badge-tone badge-warning" title="This duplicate row carries different values than the retained row — check which one is correct.">
@@ -556,7 +579,8 @@ export default function ImportWizard({ onFinished }: { onFinished: () => void })
                               )}
                             </td>
                           </tr>
-                        ))}
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -681,10 +705,11 @@ function CountBadge({ n, tone = 'default' }: { n: number; tone?: 'default' | 'su
   return <span className={cn('rounded-full px-1.5 py-px text-[10px] font-semibold', cls)}>{n}</span>
 }
 
-function ChangeTable({ rows, selected, onToggle }: {
+function ChangeTable({ rows, selected, onToggle, showSheet = false }: {
   rows: ImportRowAnalysis[]
   selected: Set<number>
   onToggle: (rowIndex: number) => void
+  showSheet?: boolean
 }) {
   if (rows.length === 0) {
     return <p className="py-8 text-center text-sm text-muted-foreground">No changed records in this file.</p>
@@ -695,6 +720,7 @@ function ChangeTable({ rows, selected, onToggle }: {
         <thead className="sticky top-0 bg-muted/95">
           <tr className="border-b text-left">
             <th className="w-10 px-3 py-2" />
+            {showSheet && <th className="px-3 py-2 font-medium">Sheet</th>}
             <th className="px-3 py-2 font-medium">LR No</th>
             <th className="px-3 py-2 font-medium">Party</th>
             <th className="px-3 py-2 font-medium">Changes</th>
@@ -707,9 +733,10 @@ function ChangeTable({ rows, selected, onToggle }: {
                 <Checkbox
                   checked={selected.has(r.rowIndex)}
                   onCheckedChange={() => onToggle(r.rowIndex)}
-                  aria-label={`Select row ${r.rowIndex}`}
+                  aria-label={`Select row ${r.excelRow}`}
                 />
               </td>
+              {showSheet && <td className="px-3 py-2">{r.sourceSheet}</td>}
               <td className="px-3 py-2 tabular-nums font-medium">{String(r.values.lrNo ?? '—')}</td>
               <td className="max-w-[220px] truncate px-3 py-2">{String(r.values.partyName ?? '—')}</td>
               <td className="px-3 py-2">
@@ -733,10 +760,11 @@ function ChangeTable({ rows, selected, onToggle }: {
   )
 }
 
-function NewTable({ rows, selected, onToggle }: {
+function NewTable({ rows, selected, onToggle, showSheet = false }: {
   rows: ImportRowAnalysis[]
   selected: Set<number>
   onToggle: (rowIndex: number) => void
+  showSheet?: boolean
 }) {
   if (rows.length === 0) {
     return <p className="py-8 text-center text-sm text-muted-foreground">No new records in this file.</p>
@@ -747,6 +775,7 @@ function NewTable({ rows, selected, onToggle }: {
         <thead className="sticky top-0 bg-muted/95">
           <tr className="border-b text-left">
             <th className="w-10 px-3 py-2" />
+            {showSheet && <th className="px-3 py-2 font-medium">Sheet</th>}
             <th className="px-3 py-2 font-medium">Excel row</th>
             <th className="px-3 py-2 font-medium">LR No</th>
             <th className="px-3 py-2 font-medium">Party</th>
@@ -760,13 +789,14 @@ function NewTable({ rows, selected, onToggle }: {
           {rows.map((r) => (
             <tr key={r.rowIndex} className={cn('border-b last:border-0', selected.has(r.rowIndex) && 'bg-accent/30')}>
               <td className="px-3 py-2">
-                <Checkbox checked={selected.has(r.rowIndex)} onCheckedChange={() => onToggle(r.rowIndex)} aria-label={`Select row ${r.rowIndex}`} />
+                <Checkbox checked={selected.has(r.rowIndex)} onCheckedChange={() => onToggle(r.rowIndex)} aria-label={`Select row ${r.excelRow}`} />
               </td>
-              <td className="px-3 py-2 tabular-nums text-muted-foreground">{r.rowIndex}</td>
+              {showSheet && <td className="px-3 py-2">{r.sourceSheet}</td>}
+              <td className="px-3 py-2 tabular-nums text-muted-foreground">{r.excelRow}</td>
               <td className="px-3 py-2 tabular-nums font-medium">{String(r.values.lrNo ?? '—')}</td>
               <td className="max-w-[220px] truncate px-3 py-2">{String(r.values.partyName ?? '—')}</td>
               <td className="px-3 py-2">{String(r.values.destination ?? '—')}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{String(r.values.totalQuantityLtrs ?? '—')}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{String(r.values.totalQuantity ?? '—')}</td>
               <td className="px-3 py-2">{r.values.measurement ? String(r.values.measurement) : '—'}</td>
               <td className="px-3 py-2">
                 {r.businessKey == null ? (
@@ -800,7 +830,7 @@ function ConflictRowCard({ row, expanded, onToggleExpand, resolution, onResoluti
           <div className="min-w-0">
             <p className="text-[13.5px] font-medium">
               LR {String(row.values.lrNo ?? '—')} • {String(row.values.partyName ?? '—')}
-              <span className="ml-2 text-xs font-normal text-muted-foreground">Excel row {row.rowIndex}</span>
+              <span className="ml-2 text-xs font-normal text-muted-foreground">{row.sourceSheet} · Excel row {row.excelRow}</span>
             </p>
             <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
               <AlertTriangle className="mr-1 inline h-3 w-3" />

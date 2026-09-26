@@ -27,7 +27,7 @@ async function main() {
   // --- 2. concurrent same-key creates: DB uniqueness is the final guard ---
   console.log('[2] Concurrent insert race (business-key uniqueness)')
   const admin = await naLogin(BASE, 'admin@npl.com', 'Admin@123')
-  const payload = JSON.stringify({ values: { partyName: 'Race Test Co', destination: 'RaceCity', invoiceNumber: 'RACE-99001', lrNo: 990002, lrDate: '2026-09-16', materialDetails: 'TATA Genius DEF (1*10) - PVBU', bucket: 120, totalQuantityLtrs: 120, deliveryStatus: 'Pending' } })
+  const payload = JSON.stringify({ values: { partyName: 'Race Test Co', destination: 'RaceCity', invoiceNumber: 'RACE-99001', lrNo: 990002, lrDate: '2026-09-16', materialDetails: 'TATA Genius DEF (1*10) - PVBU', bucket: 120, totalQuantity: 120, deliveryStatus: 'Pending' } })
   const results = await Promise.all([1, 2, 3, 4].map(() =>
     fetch(BASE + '/api/records', { method: 'POST', headers: { 'content-type': 'application/json', cookie: admin! }, body: payload })))
   const codes = results.map((r) => r.status).sort()

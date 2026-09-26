@@ -35,7 +35,7 @@ export const GET = route(async (req: NextRequest) => {
       expectedDeliveryDate: unknown; deliveryStatus: string | null; podStatus: string | null
     }>>(
       `SELECT "partyName", "destination", "lrNo", "measurement",
-              SUM("totalQuantityLtrs") as qty, COUNT(*) as count,
+              SUM("totalQuantity") as qty, COUNT(*) as count,
               MIN("lrDate") as lrDate, MIN("expectedDeliveryDate") as expectedDeliveryDate,
               MAX("deliveryStatus") as deliveryStatus, MAX("podStatus") as podStatus
        FROM "MisRecord"
@@ -102,7 +102,7 @@ export const GET = route(async (req: NextRequest) => {
   if (type === 'destination') {
     const raw = await db.misRecord.groupBy({
       by: ['destination', 'measurement'], where: { ...notDeleted, destination: { not: null } },
-      _count: true, _sum: { totalQuantityLtrs: true, bucket: true },
+      _count: true, _sum: { totalQuantity: true, bucket: true },
     })
     const acc = new Map<string, { destination: string; measurement: string; count: number; qty: number; buckets: number }>()
     for (const r of raw) {
@@ -110,7 +110,7 @@ export const GET = route(async (req: NextRequest) => {
       const key = `${r.destination ?? ''}\u0000${measurement}`
       const cur = acc.get(key) ?? { destination: r.destination ?? '', measurement, count: 0, qty: 0, buckets: 0 }
       cur.count += r._count
-      cur.qty += r._sum.totalQuantityLtrs ?? 0
+      cur.qty += r._sum.totalQuantity ?? 0
       cur.buckets += r._sum.bucket ?? 0
       acc.set(key, cur)
     }
@@ -120,7 +120,7 @@ export const GET = route(async (req: NextRequest) => {
   if (type === 'vendor') {
     const raw = await db.misRecord.groupBy({
       by: ['vendorName', 'routeCode2', 'measurement'], where: { ...notDeleted, vendorName: { not: null } },
-      _count: true, _sum: { totalQuantityLtrs: true },
+      _count: true, _sum: { totalQuantity: true },
     })
     const acc = new Map<string, { vendor: string; route: string; measurement: string; count: number; qty: number }>()
     for (const r of raw) {
@@ -130,7 +130,7 @@ export const GET = route(async (req: NextRequest) => {
       const key = `${vendor}\u0000${routeVal}\u0000${measurement}`
       const cur = acc.get(key) ?? { vendor, route: routeVal, measurement, count: 0, qty: 0 }
       cur.count += r._count
-      cur.qty += r._sum.totalQuantityLtrs ?? 0
+      cur.qty += r._sum.totalQuantity ?? 0
       acc.set(key, cur)
     }
     return NextResponse.json({ type, rows: [...acc.values()].sort((a, b) => b.qty - a.qty) })
@@ -139,7 +139,7 @@ export const GET = route(async (req: NextRequest) => {
   if (type === 'party') {
     const raw = await db.misRecord.groupBy({
       by: ['partyName', 'measurement'], where: { ...notDeleted, partyName: { not: null } },
-      _count: true, _sum: { totalQuantityLtrs: true },
+      _count: true, _sum: { totalQuantity: true },
     })
     const acc = new Map<string, { party: string; measurement: string; count: number; qty: number }>()
     for (const r of raw) {
@@ -148,7 +148,7 @@ export const GET = route(async (req: NextRequest) => {
       const key = `${party}\u0000${measurement}`
       const cur = acc.get(key) ?? { party, measurement, count: 0, qty: 0 }
       cur.count += r._count
-      cur.qty += r._sum.totalQuantityLtrs ?? 0
+      cur.qty += r._sum.totalQuantity ?? 0
       acc.set(key, cur)
     }
     return NextResponse.json({ type, rows: [...acc.values()].sort((a, b) => b.qty - a.qty) })
@@ -157,7 +157,7 @@ export const GET = route(async (req: NextRequest) => {
   if (type === 'material') {
     const raw = await db.misRecord.groupBy({
       by: ['materialDetails', 'measurement'], where: { ...notDeleted, materialDetails: { not: null } },
-      _count: true, _sum: { totalQuantityLtrs: true, bucket: true },
+      _count: true, _sum: { totalQuantity: true, bucket: true },
     })
     const acc = new Map<string, { material: string; measurement: string; count: number; qty: number; buckets: number }>()
     for (const r of raw) {
@@ -166,7 +166,7 @@ export const GET = route(async (req: NextRequest) => {
       const key = `${material}\u0000${measurement}`
       const cur = acc.get(key) ?? { material, measurement, count: 0, qty: 0, buckets: 0 }
       cur.count += r._count
-      cur.qty += r._sum.totalQuantityLtrs ?? 0
+      cur.qty += r._sum.totalQuantity ?? 0
       cur.buckets += r._sum.bucket ?? 0
       acc.set(key, cur)
     }

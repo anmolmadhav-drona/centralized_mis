@@ -62,7 +62,7 @@ const SECTION_DEFS: SectionDef[] = [
   {
     id: 'consignee', title: 'Consignee & Material', icon: Building2,
     description: 'Party, destination and cargo',
-    keys: ['partyName', 'destination', 'materialDetails', 'bucket', 'totalQuantityLtrs'],
+    keys: ['partyName', 'destination', 'materialDetails', 'bucket', 'totalQuantity'],
   },
   {
     id: 'charges', title: 'Charges & Rates', icon: Wallet,
@@ -90,7 +90,7 @@ const SECTION_DEFS: SectionDef[] = [
 const FIELD_HELP: Record<string, string> = {
   deliveryStatus: 'Manual status — drives reports and the Summary sheet.',
   trackingId: 'Courier tracking number — enables live status lookups.',
-  totalQuantityLtrs: 'Litres — or a formula like =Bucket*20.',
+  totalQuantity: 'Litres — or a formula like =Bucket*20.',
   loadingCharges: 'Amount or Excel formula, e.g. =Bucket*3.',
   unloadingCharges: 'Amount or Excel formula.',
   vehicleRate: 'Vendor vehicle rate — or an Excel formula.',
@@ -101,7 +101,7 @@ const FIELD_HELP: Record<string, string> = {
 
 // friendlier placeholders for formula-friendly numeric fields
 const NUMERIC_PLACEHOLDER: Record<string, string> = {
-  totalQuantityLtrs: 'qty or =Bucket*20',
+  totalQuantity: 'qty or =Bucket*20',
   loadingCharges: 'amount or =Bucket*3',
   unloadingCharges: 'amount',
 }

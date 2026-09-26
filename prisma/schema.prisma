@@ -93,8 +93,8 @@ model MisRecord {
   materialDetails        String?
   transporterName        String?
   bucket                 Int?
-  totalQuantityLtrs      Int?
-  measurement            String? // unit paired with totalQuantityLtrs (e.g. LTR/KG/PCS); NULL = unspecified
+  totalQuantity      Int?
+  measurement            String? // unit paired with totalQuantity (e.g. LTR/KG/PCS); NULL = unspecified
   loadType               String?
   expectedDeliveryDate   DateTime?
   actualDeliveryDate     DateTime?

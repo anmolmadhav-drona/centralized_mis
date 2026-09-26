@@ -5,7 +5,7 @@
 //   normalize(LR No.) + SEP + normalize(Invoice Number) + SEP + normalize(Party Name)
 //
 // LINE KEY (line discriminator):
-//   normalize(Material Details) + SEP + bucket + SEP + totalQuantityLtrs
+//   normalize(Material Details) + SEP + bucket + SEP + totalQuantity
 //     + SEP + normalizeMeasurement(measurement)
 // Quantity is a MAGNITUDE paired with a unit (measurement): the same
 // magnitude in different units is a different line — "Chemical|10|100|LTR" and
@@ -33,7 +33,7 @@ export interface RecordKeyValues {
   partyName?: unknown
   materialDetails?: unknown
   bucket?: unknown
-  totalQuantityLtrs?: unknown
+  totalQuantity?: unknown
   measurement?: unknown
 }
 
@@ -126,13 +126,13 @@ export function buildBusinessKey(lrNo: unknown, invoiceNumber: unknown, partyNam
 export function buildLineKey(
   materialDetails: unknown,
   bucket: unknown,
-  totalQuantityLtrs: unknown,
+  totalQuantity: unknown,
   measurement?: unknown,
 ): string {
   return [
     normalizeMaterial(materialDetails),
     numPart(bucket),
-    numPart(totalQuantityLtrs),
+    numPart(totalQuantity),
     normalizeMeasurement(measurement),
   ].join(SEP)
 }
@@ -141,7 +141,7 @@ export function buildLineKey(
 export function computeRecordKeys(v: RecordKeyValues): RecordKeys {
   return {
     businessKey: buildBusinessKey(v.lrNo, v.invoiceNumber, v.partyName),
-    lineKey: buildLineKey(v.materialDetails, v.bucket, v.totalQuantityLtrs, v.measurement),
+    lineKey: buildLineKey(v.materialDetails, v.bucket, v.totalQuantity, v.measurement),
   }
 }
 

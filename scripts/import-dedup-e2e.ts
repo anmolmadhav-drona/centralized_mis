@@ -120,7 +120,7 @@ function line(lr: number, invoice: string, party: string, over: Record<string, u
     partyName: party,
     materialDetails: 'TATA MOTORS HP GENUINE DEF - 1*20L',
     bucket: 50,
-    totalQuantityLtrs: 1000,
+    totalQuantity: 1000,
     destination: 'JAMSHEDPUR',
     pickupLocation: 'SONGIR',
     lrDate: '2026-08-20',
@@ -325,7 +325,7 @@ async function main() {
   const raceRec = await db.misRecord.create({
     data: {
       lrNo: raceRow.lrNo as number, invoiceNumber: raceRow.invoiceNumber as string, partyName: raceRow.partyName as string,
-      materialDetails: raceRow.materialDetails as string, bucket: raceRow.bucket as number, totalQuantityLtrs: raceRow.totalQuantityLtrs as number,
+      materialDetails: raceRow.materialDetails as string, bucket: raceRow.bucket as number, totalQuantity: raceRow.totalQuantity as number,
       destination: raceRow.destination as string, deliveryStatus: raceRow.deliveryStatus as string,
       businessKey: raceKeys.businessKey, lineKey: raceKeys.lineKey, createdBy: 'race-simulation', updatedBy: 'race-simulation',
     },

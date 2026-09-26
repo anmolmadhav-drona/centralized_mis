@@ -75,11 +75,11 @@ export async function buildExportWorkbook(params: ExportParams): Promise<ExcelJS
 
   const totalCols = dataFields.length
   const totalBucket = records.reduce((s, r) => s + (Number(r.bucket) || 0), 0)
-  const totalQty = records.reduce((s, r) => s + (Number(r.totalQuantityLtrs) || 0), 0)
+  const totalQty = records.reduce((s, r) => s + (Number(r.totalQuantity) || 0), 0)
 
   // --- Row 1: TOTAL row (mirrors the workbook's SUBTOTAL row, above Bucket/Qty) ---
   const bucketIdx = dataFields.findIndex((f) => f.fieldKey === 'bucket') // 0-based col index
-  const qtyIdx = dataFields.findIndex((f) => f.fieldKey === 'totalQuantityLtrs')
+  const qtyIdx = dataFields.findIndex((f) => f.fieldKey === 'totalQuantity')
   const r1 = ws.getRow(1)
   if (bucketIdx >= 0) r1.getCell(bucketIdx).value = 'TOTAL=' // column J — above TRANSPOTER NAME, like the original
   if (bucketIdx >= 0) r1.getCell(bucketIdx + 1).value = totalBucket
@@ -217,7 +217,7 @@ export async function buildExportWorkbook(params: ExportParams): Promise<ExcelJS
       const party = String(rec.partyName ?? '(blank)')
       const dest = String(rec.destination ?? '(blank)')
       const lr = Number(rec.lrNo ?? 0)
-      const qty = Number(rec.totalQuantityLtrs) || 0
+      const qty = Number(rec.totalQuantity) || 0
       const remark = String(rec.remarks1 ?? '(blank)')
       let byDest = groups.get(party)
       if (!byDest) { byDest = new Map(); groups.set(party, byDest) }

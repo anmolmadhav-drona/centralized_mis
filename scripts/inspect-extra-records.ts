@@ -5,11 +5,11 @@ const db = new PrismaClient()
 const noKey = await db.misRecord.findMany({
   where: { businessKey: null },
   orderBy: { createdAt: 'asc' },
-  select: { id: true, lrNo: true, invoiceNumber: true, partyName: true, materialDetails: true, bucket: true, totalQuantityLtrs: true, createdAt: true, createdBy: true, deletedAt: true },
+  select: { id: true, lrNo: true, invoiceNumber: true, partyName: true, materialDetails: true, bucket: true, totalQuantity: true, createdAt: true, createdBy: true, deletedAt: true },
 })
 console.log(`keyless: ${noKey.length}`)
 for (const r of noKey) {
-  console.log(`  lr=${r.lrNo} inv=${r.invoiceNumber} party=${r.partyName} mat=${r.materialDetails} b=${r.bucket} q=${r.totalQuantityLtrs} created=${r.createdAt.toISOString()} by=${r.createdBy} del=${!!r.deletedAt}`)
+  console.log(`  lr=${r.lrNo} inv=${r.invoiceNumber} party=${r.partyName} mat=${r.materialDetails} b=${r.bucket} q=${r.totalQuantity} created=${r.createdAt.toISOString()} by=${r.createdBy} del=${!!r.deletedAt}`)
 }
 
 const byDate = await db.misRecord.findMany({

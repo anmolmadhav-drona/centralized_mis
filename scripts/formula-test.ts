@@ -39,7 +39,7 @@ const F = (fieldKey: string, fieldName: string): FieldDef => ({
 } as unknown as FieldDef)
 
 const FIELDS = [
-  F('bucket', 'Bucket'), F('totalQuantityLtrs', 'TOTAL QUANTITY IN LTRS'),
+  F('bucket', 'Bucket'), F('totalQuantity', 'TOTAL QUANTITY IN LTRS'),
   F('loadingCharges', 'LOADING CHARGES'), F('loadType', 'LOAD TYPE FTL/PTL'),
 ]
 

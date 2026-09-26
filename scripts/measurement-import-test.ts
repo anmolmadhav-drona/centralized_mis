@@ -21,14 +21,14 @@ const mkField = (fieldKey: string, fieldName: string): FieldDef => ({
   isCore: true, isSystem: false, active: true, width: null,
 })
 
-const qtyField = mkField('totalQuantityLtrs', 'TOTAL QUANTITY')
+const qtyField = mkField('totalQuantity', 'TOTAL QUANTITY')
 const measField = mkField('measurement', 'Measurement')
 
 console.log('== Physical core-column mapping (Part 1) ==')
 ok('10) sqlColumnFor(measurement) === "measurement"', sqlColumnFor(measField), 'measurement')
-ok('11) sqlColumnFor(totalQuantityLtrs) === "totalQuantityLtrs"', sqlColumnFor(qtyField), 'totalQuantityLtrs')
+ok('11) sqlColumnFor(totalQuantity) === "totalQuantity"', sqlColumnFor(qtyField), 'totalQuantity')
 ok('measurement is a physical core column (not EAV)', CORE_COLUMNS.measurement, 'measurement')
-ok('quantity is a physical core column', CORE_COLUMNS.totalQuantityLtrs, 'totalQuantityLtrs')
+ok('quantity is a physical core column', CORE_COLUMNS.totalQuantity, 'totalQuantity')
 
 console.log('== Header → fieldKey mapping (Part 3, same rule as import.ts) ==')
 const fields = [qtyField, measField]
@@ -37,12 +37,12 @@ const mapHeader = (h: string): string | null => {
   const f = fields.find((f) => f.fieldName.toLowerCase() === lower)
   return f ? f.fieldKey : null
 }
-ok('12) TOTAL QUANTITY -> totalQuantityLtrs', mapHeader('TOTAL QUANTITY'), 'totalQuantityLtrs')
+ok('12) TOTAL QUANTITY -> totalQuantity', mapHeader('TOTAL QUANTITY'), 'totalQuantity')
 ok('12) Measurement -> measurement', mapHeader('Measurement'), 'measurement')
 ok('old "TOTAL QUANTITY IN LTRS" header no longer matches', mapHeader('TOTAL QUANTITY IN LTRS'), null)
 ok('full chain: TOTAL QUANTITY -> fieldKey -> column',
   (() => { const k = mapHeader('TOTAL QUANTITY'); const f = fields.find((x) => x.fieldKey === k); return f ? sqlColumnFor(f) : null })(),
-  'totalQuantityLtrs')
+  'totalQuantity')
 ok('full chain: Measurement -> fieldKey -> column',
   (() => { const k = mapHeader('Measurement'); const f = fields.find((x) => x.fieldKey === k); return f ? sqlColumnFor(f) : null })(),
   'measurement')
@@ -52,8 +52,8 @@ console.log('== Importer measurement handling (Part 3 — mirrors import.ts) =='
 // tracks the real importer behavior (normalize + require-when-quantity).
 function importMeasure(qty: unknown, rawMeas: unknown): { stored: string | null; invalid: boolean } {
   const errors: string[] = []
-  const values: Record<string, unknown> = { totalQuantityLtrs: qty, measurement: rawMeas }
-  const hasQty = values['totalQuantityLtrs'] != null && values['totalQuantityLtrs'] !== ''
+  const values: Record<string, unknown> = { totalQuantity: qty, measurement: rawMeas }
+  const hasQty = values['totalQuantity'] != null && values['totalQuantity'] !== ''
   const hasMeas = values['measurement'] != null && String(values['measurement']).trim() !== ''
   if (hasMeas) values['measurement'] = normalizeMeasurement(values['measurement'])
   else { values['measurement'] = null; if (hasQty) errors.push('Measurement is required when Total Quantity is present.') }

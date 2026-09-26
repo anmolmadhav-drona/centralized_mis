@@ -85,7 +85,7 @@ ok('Liters/liters/Ltrs/ltr/LTR all collapse to one identity',
 ok('LTR identity string is canonical', buildLineKey('Chemical', 10, 100, 'liters'), 'CHEMICAL\n10\n100\nLTR')
 
 console.log('== computeRecordKeys ==')
-const keys = computeRecordKeys({ lrNo: 1358, invoiceNumber: 'JHUSO26/433774', partyName: 'MS Magpie Filling Station', materialDetails: 'DEF 1*20L', bucket: 50, totalQuantityLtrs: 1000, measurement: 'Liters' })
+const keys = computeRecordKeys({ lrNo: 1358, invoiceNumber: 'JHUSO26/433774', partyName: 'MS Magpie Filling Station', materialDetails: 'DEF 1*20L', bucket: 50, totalQuantity: 1000, measurement: 'Liters' })
 ok('businessKey', keys.businessKey, '1358\nJHUSO26/433774\nMS MAGPIE FILLING STATION')
 ok('lineKey (measurement normalized in key)', keys.lineKey, 'DEF 1*20L\n50\n1000\nLTR')
 const partial = computeRecordKeys({ lrNo: 1358, partyName: 'X' })

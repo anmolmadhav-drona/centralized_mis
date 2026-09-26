@@ -77,18 +77,19 @@ function dropNullDerived(core: Record<string, StoredValue>): void {
 }
 
 interface SheetCtx {
+  sheetName: string
   headerRowIndex: number
   colToField: Array<[number, string]>
 }
 
-/** Sheet-context resolvers — column refs bind to the formula's own row;
- *  A1 cell refs / ranges resolve against the parsed sheet (absolute). */
+/** Sheet-context resolvers — column refs bind to the formula's own row; A1 cell
+ *  refs / ranges resolve against the row's OWN worksheet (multi-sheet safe: two
+ *  sheets may share an Excel row number, so cell lookups are scoped per sheet). */
 function makeSheetResolvers(
-  ctx: SheetCtx | undefined,
-  rowsByExcelRow: Map<number, ImportRowAnalysis>,
+  sheets: Map<string, Map<number, string>>, // sheetName → (0-based colIdx → fieldKey)
+  rowsBySheet: Map<string, Map<number, ImportRowAnalysis>>, // sheetName → (excelRow → row)
   fields: FieldDef[]
 ) {
-  const colToField = new Map<number, string>(ctx?.colToField ?? [])
   const fieldByKey = new Map(fields.map((f) => [f.fieldKey, f]))
 
   const serialize = (v: unknown): EvalValue | null => {
@@ -97,22 +98,24 @@ function makeSheetResolvers(
     if (typeof v === 'number' || typeof v === 'boolean') return v
     return String(v)
   }
-  const cellValueAt = (col: number, row: number): EvalValue | null => {
-    const fieldKey = colToField.get(col - 1) // A1 col is 1-based, ctx col 0-based
-    const rowAnalysis = rowsByExcelRow.get(row)
+  const cellValueAt = (sheetName: string, col: number, row: number): EvalValue | null => {
+    const colToField = sheets.get(sheetName)
+    const rowsByExcelRow = rowsBySheet.get(sheetName)
+    const fieldKey = colToField?.get(col - 1) // A1 col is 1-based, ctx col 0-based
+    const rowAnalysis = rowsByExcelRow?.get(row)
     if (!fieldKey || !rowAnalysis) {
       return cellError('#REF!', `Cell reference points outside the imported sheet (row ${row})`)
     }
     return serialize(rowAnalysis.values[fieldKey])
   }
-  /** per-row resolver (column refs = this row's values) */
+  /** per-row resolver (column refs = this row's values; cell refs = this row's sheet) */
   const rowResolver = (row: ImportRowAnalysis): RefResolver => ({
     columnValue(fieldKey: string, name: string): EvalValue | null {
       if (!fieldByKey.has(fieldKey)) return cellError('#REF!', `Unknown column "${name}"`)
       return serialize(row.values[fieldKey])
     },
     cellValue(addr: CellAddr): EvalValue | null {
-      return cellValueAt(addr.col, addr.row)
+      return cellValueAt(row.sourceSheet, addr.col, addr.row)
     },
     rangeValues(start: CellAddr, end: CellAddr): Array<EvalValue | null> | CellError {
       const out: Array<EvalValue | null> = []
@@ -122,7 +125,7 @@ function makeSheetResolvers(
       const r1 = Math.max(start.row, end.row)
       for (let r = r0; r <= r1; r++) {
         for (let c = c0; c <= c1; c++) {
-          const v = cellValueAt(c, r)
+          const v = cellValueAt(row.sourceSheet, c, r)
           if (isErr(v)) return v
           out.push(v)
         }
@@ -141,7 +144,7 @@ export async function applyImport(input: ConfirmInput, user: SessionUser, meta: 
   const payload = JSON.parse(job.payload || '{}') as {
     rows: ImportRowAnalysis[]
     missing: Array<{ recordId: string }>
-    sheetCtx?: SheetCtx
+    sheets?: SheetCtx[]
   }
   const rows = payload.rows || []
   // Field mapping (role-aware): restricted tables (Vehicle Rate, Loading
@@ -151,8 +154,17 @@ export async function applyImport(input: ConfirmInput, user: SessionUser, meta: 
   const fieldMap = await getFieldMapForRole(user.role)
   const fields = [...fieldMap.values()]
   const coreKeys = new Set(fields.filter((f) => f.isCore && !f.isSystem).map((f) => f.fieldKey))
-  const rowsByExcelRow = new Map(rows.map((r) => [r.rowIndex, r]))
-  const { rowResolver } = makeSheetResolvers(payload.sheetCtx, rowsByExcelRow, fields)
+  // per-sheet formula context: column map + rows keyed by their own Excel row
+  const sheetsMap = new Map<string, Map<number, string>>(
+    (payload.sheets ?? []).map((s) => [s.sheetName, new Map<number, string>(s.colToField)]),
+  )
+  const rowsBySheet = new Map<string, Map<number, ImportRowAnalysis>>()
+  for (const r of rows) {
+    let m = rowsBySheet.get(r.sourceSheet)
+    if (!m) { m = new Map<number, ImportRowAnalysis>(); rowsBySheet.set(r.sourceSheet, m) }
+    m.set(r.excelRow, r)
+  }
+  const { rowResolver } = makeSheetResolvers(sheetsMap, rowsBySheet, fields)
 
   /** Evaluate a row's captured formulas → outcomes (value + cached JSON). */
   const evalRowFormulas = (row: ImportRowAnalysis) => {
@@ -196,7 +208,8 @@ export async function applyImport(input: ConfirmInput, user: SessionUser, meta: 
     result.failed++
     result.skipped++
     result.failedRows.push({
-      rowIndex: row.rowIndex,
+      rowIndex: row.excelRow,
+      sourceSheet: row.sourceSheet,
       lrNo: (row.values.lrNo as number | string | null) ?? null,
       invoiceNumber: (row.values.invoiceNumber as string | null) ?? null,
       partyName: (row.values.partyName as string | null) ?? null,

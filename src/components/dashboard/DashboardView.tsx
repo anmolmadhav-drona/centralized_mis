@@ -91,7 +91,7 @@ export default function DashboardView() {
       {/* KPI row 1 */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
         <KpiCard icon={Package} label="Total Records" num={data.totalRecords} format={fmtNum} hint="active MIS entries" delay={0} />
-        <KpiCard icon={Droplets} label="Total Quantity" num={data.totalQuantityLtrs} format={fmtQty} hint={`${fmtNum(data.totalBuckets)} buckets`} delay={0.04} />
+        <KpiCard icon={Droplets} label="Total Quantity" num={data.totalQuantity} format={fmtQty} hint={`${fmtNum(data.totalBuckets)} buckets`} delay={0.04} />
         <KpiCard icon={CheckCircle2} label="Delivered" num={data.deliveredCount} format={fmtNum} hint={`${fmtPercent(deliveredPct)} of records • ${fmtQty(data.deliveredQty)}`} tone="success" delay={0.08} />
         <KpiCard icon={Clock} label="Pending + In Transit" num={data.pendingCount + data.inTransitCount} format={fmtNum} hint={`${fmtQty(data.pendingQty)} pending qty`} tone="warning" delay={0.12} />
         <KpiCard icon={Truck} label="FTL / PTL" value={`${fmtNum(data.ftlCount)} / ${fmtNum(data.ptlCount)}`} hint="load type split" tone="info" delay={0.16} />

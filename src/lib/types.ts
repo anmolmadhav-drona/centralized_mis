@@ -81,7 +81,11 @@ export interface ImportFieldDiff {
 }
 
 export interface ImportRowAnalysis {
-  rowIndex: number // Excel row number (1-based)
+  rowIndex: number // workbook-unique row id (stable key for selection/apply; NOT the Excel row)
+  /** worksheet the row came from (source metadata for preview/debugging) */
+  sourceSheet: string
+  /** 1-based Excel row within sourceSheet (source metadata for display) */
+  excelRow: number
   kind: ImportRowKind
   recordId: string | null
   dbVersion: number | null
@@ -125,7 +129,8 @@ export interface ImportPreview {
 
 /** A problematic row reported after apply — enough context to find it in the file. */
 export interface ImportFailedRow {
-  rowIndex: number
+  rowIndex: number // 1-based Excel row within sourceSheet
+  sourceSheet: string
   lrNo: number | string | null
   invoiceNumber: string | null
   partyName: string | null
@@ -154,7 +159,7 @@ export interface ImportApplyResult {
 // ------------------------------------------------------------------
 export interface DashboardData {
   totalRecords: number
-  totalQuantityLtrs: number
+  totalQuantity: number
   totalBuckets: number
   deliveredCount: number
   deliveredQty: number

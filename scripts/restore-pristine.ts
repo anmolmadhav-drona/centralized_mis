@@ -36,8 +36,8 @@ async function main() {
   await db.importJob.deleteMany({})
 
   // 5. verify
-  const active = await db.misRecord.findMany({ where: { deletedAt: null }, select: { totalQuantityLtrs: true, lrNo: true } })
-  const total = active.reduce((s, r) => s + (r.totalQuantityLtrs || 0), 0)
+  const active = await db.misRecord.findMany({ where: { deletedAt: null }, select: { totalQuantity: true, lrNo: true } })
+  const total = active.reduce((s, r) => s + (r.totalQuantity || 0), 0)
   const all = await db.misRecord.count()
   console.log(`active=${active.length} totalQty=${total} allRecords(incl. soft-deleted)=${all}`)
   console.log(`dynamic fields removed: ${dynFields.length}, test records removed: ${testRecords.length}`)

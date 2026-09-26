@@ -59,7 +59,7 @@ interface SqlPart {
 const CORE_SELECT_COLS = [
   'id', 'version', 'pickupLocation', 'partyName', 'destination', 'invoiceNumber',
   'lrNo', 'lrDate', 'routeCode', 'materialDetails', 'transporterName', 'bucket',
-  'totalQuantityLtrs', 'loadType', 'expectedDeliveryDate', 'actualDeliveryDate',
+  'totalQuantity', 'measurement', 'loadType', 'expectedDeliveryDate', 'actualDeliveryDate',
   'deliveryStatus', 'trackingId', 'liveStatus', 'lastStatusUpdate', 'lrStatus', 'damage',
   'loadingCharges', 'unloadingCharges',
   'vehicleNumber', 'vehicleType', 'ply', 'remark', 'remarks1', 'dispatchDate',

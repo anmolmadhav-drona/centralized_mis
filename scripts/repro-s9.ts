@@ -12,7 +12,7 @@ const active = rows.filter((f) => !f.isSystem)
 const headers: string[] = active.map((f) => f.fieldName)
 const line: Record<string, unknown> = {
   lrNo: 970010, invoiceNumber: 'E2ETEST26/000010', partyName: 'E2E Race Condition Co',
-  materialDetails: 'TATA MOTORS HP GENUINE DEF - 1*20L', bucket: 50, totalQuantityLtrs: 1000,
+  materialDetails: 'TATA MOTORS HP GENUINE DEF - 1*20L', bucket: 50, totalQuantity: 1000,
   destination: 'JAMSHEDPUR', pickupLocation: 'SONGIR', lrDate: '2026-08-20',
   loadType: 'FTL', deliveryStatus: 'Pending', podStatus: 'POD Pending',
 }

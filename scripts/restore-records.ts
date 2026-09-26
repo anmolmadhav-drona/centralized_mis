@@ -72,7 +72,7 @@ async function main() {
       materialDetails: get(r, 8) as string | null,
       transporterName: get(r, 9) as string | null,
       bucket: int(r, 10),
-      totalQuantityLtrs: int(r, 11),
+      totalQuantity: int(r, 11),
       loadType: get(r, 12) as string | null,
       expectedDeliveryDate: date(r, 13),
       actualDeliveryDate: date(r, 14),
@@ -104,7 +104,7 @@ async function main() {
       partyName: base.partyName,
       materialDetails: base.materialDetails,
       bucket: base.bucket,
-      totalQuantityLtrs: base.totalQuantityLtrs,
+      totalQuantity: base.totalQuantity,
     })
     await db.misRecord.create({
       data: {
@@ -119,8 +119,8 @@ async function main() {
     count++
   }
 
-  const active = await db.misRecord.findMany({ where: { deletedAt: null }, select: { totalQuantityLtrs: true } })
-  const total = active.reduce((s, r) => s + (r.totalQuantityLtrs || 0), 0)
+  const active = await db.misRecord.findMany({ where: { deletedAt: null }, select: { totalQuantity: true } })
+  const total = active.reduce((s, r) => s + (r.totalQuantity || 0), 0)
   console.log(`restored ${count} records, total qty = ${total}`)
   await db.$disconnect()
 }

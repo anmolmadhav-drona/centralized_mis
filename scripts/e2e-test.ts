@@ -136,7 +136,7 @@ async function main() {
   const fDate = await admin.call('GET', `/api/records?start=0&end=5&filter=${encodeURIComponent(JSON.stringify({ lrDate: { filterType: 'date', type: 'inRange', dateFrom: '2026-08-01', dateTo: '2026-08-05' } }))}`)
   ok('date range filter', fDate.json.total === 76)
 
-  const fNum = await admin.call('GET', `/api/records?start=0&end=5&filter=${encodeURIComponent(JSON.stringify({ totalQuantityLtrs: { filterType: 'number', type: 'greaterThan', filter: 5000 } }))}`)
+  const fNum = await admin.call('GET', `/api/records?start=0&end=5&filter=${encodeURIComponent(JSON.stringify({ totalQuantity: { filterType: 'number', type: 'greaterThan', filter: 5000 } }))}`)
   ok('number filter (qty > 5000)', fNum.json.total === 10)
 
   const fCombo = await admin.call('GET', `/api/records?start=0&end=5&filter=${encodeURIComponent(JSON.stringify({ destination: { filterType: 'text', type: 'equals', filter: 'Delhi' }, loadType: { filterType: 'text', type: 'equals', filter: 'FTL' } }))}`)
@@ -152,7 +152,7 @@ async function main() {
       pickupLocation: 'Sonipat', partyName: 'E2E Test Logistics Pvt LTD', destination: 'Testburg',
       invoiceNumber: 'E2E-001', lrNo: 99001, lrDate: '2026-09-11',
       materialDetails: 'TATA Genius DEF (4*5) - PVBU', transporterName: 'Drona Logitech',
-      bucket: 2, totalQuantityLtrs: 40, loadType: 'PTL', deliveryStatus: 'Pending',
+      bucket: 2, totalQuantity: 40, loadType: 'PTL', deliveryStatus: 'Pending',
       lrStatus: 'To be Billed', damage: 'No', podStatus: 'WH',
     },
   })
@@ -345,8 +345,8 @@ async function main() {
   // qty math: 180885 base + 80 (import new) + (2220-180) changed + (777-500) conflict-mine
   // (the +40 created record was soft-deleted in step 10, so it is excluded)
   const expectedQty = 180885 + 80 + (2220 - 180) + (777 - 500)
-  ok('dashboard aggregates', dash.status === 200 && dash.json.totalRecords === 341 && dash.json.totalQuantityLtrs === expectedQty,
-    `got ${dash.json.totalRecords}/${dash.json.totalQuantityLtrs} expected 341/${expectedQty}`)
+  ok('dashboard aggregates', dash.status === 200 && dash.json.totalRecords === 341 && dash.json.totalQuantity === expectedQty,
+    `got ${dash.json.totalRecords}/${dash.json.totalQuantity} expected 341/${expectedQty}`)
   const rep = await admin.call('GET', '/api/reports?type=pending')
   ok('pending report (live summary)', rep.status === 200 && Array.isArray(rep.json.rows))
   const repDest = await admin.call('GET', '/api/reports?type=destination')
@@ -368,8 +368,8 @@ async function main() {
     // Revert the two mutated Delhi rows to their pre-test values (versions
     // keep bumping — harmless, every version check in this suite is relative).
     const restores: Array<[string, Record<string, unknown>]> = [
-      [row3Id, { bucket: origRow3Bucket, totalQuantityLtrs: origRow3Qty }],
-      [row4Id, { totalQuantityLtrs: origRow4Qty, ...(remarkCol > 0 ? { remark: origRow4Remark } : {}) }],
+      [row3Id, { bucket: origRow3Bucket, totalQuantity: origRow3Qty }],
+      [row4Id, { totalQuantity: origRow4Qty, ...(remarkCol > 0 ? { remark: origRow4Remark } : {}) }],
     ]
     for (const [rid, values] of restores) {
       const cur = await admin.call('GET', `/api/records/${rid}`)

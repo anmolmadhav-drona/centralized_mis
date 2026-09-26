@@ -22,13 +22,13 @@ export const GET = route(async (_req: NextRequest) => {
     onTimeRow, trendRows, pendingRows, fields,
   ] = await Promise.all([
     db.misRecord.count({ where: notDeleted }),
-    db.misRecord.aggregate({ where: notDeleted, _sum: { totalQuantityLtrs: true, bucket: true } }),
+    db.misRecord.aggregate({ where: notDeleted, _sum: { totalQuantity: true, bucket: true } }),
     db.misRecord.groupBy({ by: ['loadType'], where: notDeleted, _count: true }),
-    db.misRecord.groupBy({ by: ['deliveryStatus'], where: notDeleted, _count: true, _sum: { totalQuantityLtrs: true } }),
+    db.misRecord.groupBy({ by: ['deliveryStatus'], where: notDeleted, _count: true, _sum: { totalQuantity: true } }),
     db.misRecord.groupBy({ by: ['podStatus'], where: notDeleted, _count: true }),
     db.misRecord.count({ where: { ...notDeleted, createdAt: { gte: istDayStart } } }),
     db.misRecord.count({ where: { ...notDeleted, createdAt: { gte: istMonthStart } } }),
-    db.misRecord.groupBy({ by: ['vendorName'], where: { ...notDeleted, vendorName: { not: null } }, _count: true, _sum: { totalQuantityLtrs: true } }),
+    db.misRecord.groupBy({ by: ['vendorName'], where: { ...notDeleted, vendorName: { not: null } }, _count: true, _sum: { totalQuantity: true } }),
     // column-to-column comparison — portable SQL
     rawQuery<{ ontime: number; delayed: number }[]>(
       `SELECT
@@ -38,7 +38,7 @@ export const GET = route(async (_req: NextRequest) => {
     ),
     // last 45 days of LR activity (windowed — cheap at any scale)
     rawQuery<{ d: Date; qty: number; c: number }[]>(
-      `SELECT "lrDate" as d, SUM("totalQuantityLtrs") as qty, COUNT(*) as c
+      `SELECT "lrDate" as d, SUM("totalQuantity") as qty, COUNT(*) as c
        FROM "MisRecord"
        WHERE "deletedAt" IS NULL AND "lrDate" IS NOT NULL AND "lrDate" >= ?
        GROUP BY "lrDate" ORDER BY "lrDate" ASC`,
@@ -46,7 +46,7 @@ export const GET = route(async (_req: NextRequest) => {
     ),
     // pending / in-transit detail (broad LOWER match to catch casing variants)
     rawQuery<{ partyName: string; destination: string; lrNo: number; qty: number; lrDate: Date; expectedDeliveryDate: Date | null }[]>(
-      `SELECT "partyName", "destination", "lrNo", "totalQuantityLtrs" as qty, "lrDate", "expectedDeliveryDate"
+      `SELECT "partyName", "destination", "lrNo", "totalQuantity" as qty, "lrDate", "expectedDeliveryDate"
        FROM "MisRecord"
        WHERE "deletedAt" IS NULL AND LOWER(TRIM(COALESCE("deliveryStatus", ''))) IN ('pending', 'in transit')
        ORDER BY "lrDate" ASC`
@@ -58,7 +58,7 @@ export const GET = route(async (_req: NextRequest) => {
   // top destinations
   const destGroups = await db.misRecord.groupBy({
     by: ['destination'], where: { ...notDeleted, destination: { not: null } },
-    _count: true, _sum: { totalQuantityLtrs: true },
+    _count: true, _sum: { totalQuantity: true },
   })
 
   // Canonical options for deliveryStatus from the field registry
@@ -76,7 +76,7 @@ export const GET = route(async (_req: NextRequest) => {
     const existing = canonMap.get(canon) ?? { count: 0, qty: 0 }
     canonMap.set(canon, {
       count: existing.count + g._count,
-      qty: existing.qty + Number(g._sum.totalQuantityLtrs ?? 0),
+      qty: existing.qty + Number(g._sum.totalQuantity ?? 0),
     })
   }
 
@@ -106,7 +106,7 @@ export const GET = route(async (_req: NextRequest) => {
 
   const data: DashboardData = {
     totalRecords,
-    totalQuantityLtrs: Number(qtyAgg._sum.totalQuantityLtrs ?? 0),
+    totalQuantity: Number(qtyAgg._sum.totalQuantity ?? 0),
     totalBuckets: Number(qtyAgg._sum.bucket ?? 0),
     deliveredCount: deliveredEntry.count,
     deliveredQty: deliveredEntry.qty,
@@ -133,11 +133,11 @@ export const GET = route(async (_req: NextRequest) => {
       count: Number(r.c ?? 0),
     })),
     topDestinations: destGroups
-      .map((g) => ({ destination: g.destination ?? '(blank)', qty: Number(g._sum.totalQuantityLtrs ?? 0), count: g._count }))
+      .map((g) => ({ destination: g.destination ?? '(blank)', qty: Number(g._sum.totalQuantity ?? 0), count: g._count }))
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 10),
     vendorBreakdown: vendorGroups
-      .map((g) => ({ vendor: g.vendorName ?? '(blank)', qty: Number(g._sum.totalQuantityLtrs ?? 0), count: g._count }))
+      .map((g) => ({ vendor: g.vendorName ?? '(blank)', qty: Number(g._sum.totalQuantity ?? 0), count: g._count }))
       .sort((a, b) => b.qty - a.qty),
     pendingByParty: pendingRows.map((r) => ({
       party: r.partyName ?? '',

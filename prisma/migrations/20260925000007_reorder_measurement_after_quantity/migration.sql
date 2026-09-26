@@ -1,23 +1,30 @@
--- 0007 — MIS column order: place "Measurement" immediately after "TOTAL QUANTITY".
+-- 0007 — MIS column order: place "Measurement" immediately after the quantity
+-- field. Registry ordering only (position drives grid + Settings column order).
+-- No schema, data-value, identity, or logic change.
 --
--- Registry ordering only (position drives grid + Settings column order). No
--- schema, data-value, identity, or logic change. Measurement was registered at
--- a trailing position by 0005; this moves it directly after totalQuantityLtrs
--- and shifts every field that follows totalQuantityLtrs down by one, preserving
--- the relative order of all other fields.
+-- Fresh-DB safe: the bulk registry (including the quantity field) is created by
+-- the seed, NOT by migrations, so on a freshly-migrated (unseeded) database the
+-- 'totalQuantityLtrs' row is absent. Guard the reorder in a DO block so a
+-- missing row is a no-op instead of writing NULL into position.
 --
--- Written relative to the live position of totalQuantityLtrs (not hard-coded
--- numbers), so it is correct regardless of the exact stored positions.
+-- Historical note: this migration runs BEFORE 0008, so it references the
+-- fieldKey by its old name 'totalQuantityLtrs' (the value at this point in the
+-- migration history). 0008 renames it afterwards.
 
--- 1) Make room: push every field positioned after TOTAL QUANTITY down by one
---    (Measurement excluded — it is placed explicitly in step 2).
-UPDATE "MisField"
-SET "position" = "position" + 1, "updatedAt" = NOW()
-WHERE "position" > (SELECT "position" FROM "MisField" WHERE "fieldKey" = 'totalQuantityLtrs')
-  AND "fieldKey" <> 'measurement';
-
--- 2) Place Measurement immediately after TOTAL QUANTITY (into the freed slot).
-UPDATE "MisField"
-SET "position" = (SELECT "position" FROM "MisField" WHERE "fieldKey" = 'totalQuantityLtrs') + 1,
-    "updatedAt" = NOW()
-WHERE "fieldKey" = 'measurement';
+DO $$
+DECLARE
+  q_pos integer;
+BEGIN
+  SELECT "position" INTO q_pos FROM "MisField" WHERE "fieldKey" = 'totalQuantityLtrs';
+  IF q_pos IS NOT NULL THEN
+    -- make room: push every field after the quantity field down by one
+    -- (Measurement excluded — it is placed explicitly next)
+    UPDATE "MisField"
+      SET "position" = "position" + 1, "updatedAt" = NOW()
+      WHERE "position" > q_pos AND "fieldKey" <> 'measurement';
+    -- place Measurement immediately after the quantity field (freed slot)
+    UPDATE "MisField"
+      SET "position" = q_pos + 1, "updatedAt" = NOW()
+      WHERE "fieldKey" = 'measurement';
+  END IF;
+END $$;

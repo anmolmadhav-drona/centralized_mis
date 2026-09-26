@@ -60,7 +60,7 @@ const FIELDS: Array<{
   { key: 'materialDetails', name: 'MATERIAL DETAILS', display: 'Material Details', type: 'TEXT', width: 37.4 },
   { key: 'transporterName', name: 'TRANSPOTER NAME', display: 'Transporter Name', type: 'TEXT', width: 23.8, default: 'Drona Logitech' },
   { key: 'bucket', name: 'Bucket', display: 'Bucket', type: 'INTEGER', width: 12.7 },
-  { key: 'totalQuantityLtrs', name: 'TOTAL QUANTITY', display: 'Total Quantity', type: 'INTEGER', width: 28.6 },
+  { key: 'totalQuantity', name: 'TOTAL QUANTITY', display: 'Total Quantity', type: 'INTEGER', width: 28.6 },
   // Unit paired with Total Quantity (LTR/KG/PCS); the historical NPL baseline is liters.
   { key: 'measurement', name: 'Measurement', display: 'Measurement', type: 'TEXT', width: 16 },
   { key: 'loadType', name: 'LOAD TYPE FTL/PTL', display: 'Load Type', type: 'TEXT', width: 22.9, default: 'PTL' },
@@ -199,7 +199,7 @@ async function seedRecords() {
       materialDetails: get(8) as string | null,
       transporterName: get(9) as string | null,
       bucket: int(10),
-      totalQuantityLtrs: int(11),
+      totalQuantity: int(11),
       measurement: int(11) == null ? null : 'LTR', // historical NPL baseline is liters
       loadType: get(12) as string | null,
       expectedDeliveryDate: date(13),
@@ -231,7 +231,7 @@ async function seedRecords() {
       partyName: rec.partyName,
       materialDetails: rec.materialDetails,
       bucket: rec.bucket,
-      totalQuantityLtrs: rec.totalQuantityLtrs,
+      totalQuantity: rec.totalQuantity,
       measurement: rec.measurement,
     })
     // Delivery-derived columns — identical runtime derivation
@@ -255,15 +255,15 @@ async function seedRecords() {
 
 async function verify() {
   const total = await db.misRecord.count()
-  const qty = await db.misRecord.aggregate({ _sum: { totalQuantityLtrs: true, bucket: true } })
+  const qty = await db.misRecord.aggregate({ _sum: { totalQuantity: true, bucket: true } })
   const pending = await db.misRecord.count({ where: { remarks1: 'Pending' } })
   const lr = await db.misRecord.findFirst({ where: { lrNo: 1301 } })
   console.log('--- VERIFY ---')
   console.log(`records=${total} (expect 340)`)
-  console.log(`totalQty=${qty._sum.totalQuantityLtrs} (expect 180885)`)
+  console.log(`totalQty=${qty._sum.totalQuantity} (expect 180885)`)
   console.log(`totalBucket=${qty._sum.bucket} (expect ${8067 + 8119 > 0 ? '?' : '?'})`)
   console.log(`pending(remarks1)=${pending} (expect 7)`)
-  console.log(`LR 1301: party=${lr?.partyName}, dest=${lr?.destination}, qty=${lr?.totalQuantityLtrs}, lrDate=${lr?.lrDate?.toISOString()}`)
+  console.log(`LR 1301: party=${lr?.partyName}, dest=${lr?.destination}, qty=${lr?.totalQuantity}, lrDate=${lr?.lrDate?.toISOString()}`)
 }
 
 async function main() {

@@ -6,6 +6,7 @@
 // notification feed, user & role) + mobile drawer. Single-page architecture:
 // all views are components; only `/` is routed.
 import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
@@ -13,7 +14,7 @@ import {
   LayoutDashboard, Table2, FileBarChart2, ArrowDownUp, ScrollText, Settings2,
   ChevronsLeft, ChevronsRight, LogOut, Moon, Sun, Calculator, RefreshCw,
   Menu, X, Search, Bell, Database, Columns3, FileSpreadsheet, Info, CheckCheck,
-  Trash2, Command,
+  Trash2, Command, Plus, Sheet as SheetIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -24,7 +25,9 @@ import { signOut } from 'next-auth/react'
 import { useAppStore, type ViewId, type NotificationItem } from '@/lib/client/store'
 import { can, ROLE_LABELS } from '@/lib/rbac'
 import { apiPost } from '@/lib/client/api'
-import { useRefreshAll } from '@/lib/client/hooks'
+import { useRefreshAll, useSheets } from '@/lib/client/hooks'
+import CreateSheetDialog from '@/components/sheets/CreateSheetDialog'
+import SheetWorkspaceView from '@/components/sheets/SheetWorkspaceView'
 import { DronaArcs, DronaFullLogo, DronaEmblem, BrandGlow } from '@/components/brand/DronaLogo'
 import DashboardView from '@/components/dashboard/DashboardView'
 import MisView from '@/components/mis/MisView'
@@ -46,9 +49,11 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'MIS',
+    // "Centralized MIS" renders its application sheets (NPL + created) plus an
+    // ADMIN-only "Create a New Sheet" action (injected in renderNav), followed
+    // by the Import / Export item below.
+    label: 'Centralized MIS',
     items: [
-      { id: 'mis', label: 'Centralized MIS', icon: Table2, permission: 'records:view' },
       { id: 'excel', label: 'Import / Export', icon: ArrowDownUp, permission: 'records:view' },
     ],
   },
@@ -76,8 +81,9 @@ const ALL_NAV = NAV_GROUPS.flatMap((g) => g.items)
 
 const VIEW_META: Record<ViewId, { section: string; title: string; subtitle: string }> = {
   dashboard: { section: 'Overview', title: 'Operations Dashboard', subtitle: "What is happening across Drona Logitech right now" },
-  mis: { section: 'MIS', title: 'Centralized MIS Workspace', subtitle: 'The single source of operational truth' },
-  excel: { section: 'MIS', title: 'Excel Data Exchange', subtitle: 'Round-trip the company workbook safely' },
+  mis: { section: 'Centralized MIS', title: 'Centralized MIS Workspace', subtitle: 'The single source of operational truth' },
+  sheet: { section: 'Centralized MIS', title: 'MIS Sheet', subtitle: 'Application MIS dataset' },
+  excel: { section: 'Centralized MIS', title: 'Excel Data Exchange', subtitle: 'Round-trip the company workbook safely' },
   reports: { section: 'Analytics', title: 'Reports & Summaries', subtitle: 'Live operational analytics' },
   audit: { section: 'Operations', title: 'Audit Trail', subtitle: 'Every change, tracked' },
   settings: { section: 'Administration', title: 'Users & Settings', subtitle: 'People, permissions & MIS fields' },
@@ -104,8 +110,22 @@ export default function AppShell() {
   const user = useAppStore((s) => s.user)
   const view = useAppStore((s) => s.view)
   const setView = useAppStore((s) => s.setView)
+  const activeSheet = useAppStore((s) => s.activeSheet)
+  const setActiveSheet = useAppStore((s) => s.setActiveSheet)
   const collapsed = useAppStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
+
+  // application MIS sheets (NPL + created) — drives the Centralized MIS nav
+  const sheetsQuery = useSheets()
+  const sheets = sheetsQuery.data?.sheets ?? []
+  const [createSheetOpen, setCreateSheetOpen] = useState(false)
+  const queryClient = useQueryClient()
+
+  const openSheet = (s: { id: string; name: string; isSystem: boolean }) => {
+    setActiveSheet(s)
+    setView(s.isSystem ? 'mis' : 'sheet')
+    setMobileNavOpen(false)
+  }
   const toggleCalculator = useAppStore((s) => s.toggleCalculator)
   const setUser = useAppStore((s) => s.setUser)
   const refreshAll = useRefreshAll()
@@ -198,6 +218,56 @@ export default function AppShell() {
 
   const meta = VIEW_META[view]
 
+  // ---- application-sheet sub-navigation (NPL + created + admin create) ----
+  const renderSheetsBlock = (isMobile = false) => (
+    <ul className="mb-0.5 space-y-0.5">
+      {sheets.map((s) => {
+        const active = s.isSystem ? view === 'mis' : view === 'sheet' && activeSheet?.id === s.id
+        return (
+          <li key={s.id}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => openSheet({ id: s.id, name: s.name, isSystem: s.isSystem })}
+                  aria-current={active ? 'page' : undefined}
+                  className={`relative flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors ${
+                    active ? 'bg-sidebar-accent text-white' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-white'
+                  } ${(collapsed && !isMobile) ? 'justify-center' : ''}`}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId={isMobile ? 'nav-active-mobile' : 'nav-active'}
+                      className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r bg-brand-red"
+                    />
+                  )}
+                  <SheetIcon className={`h-[17px] w-[17px] shrink-0 ${active ? 'text-sidebar-primary' : ''}`} />
+                  {(!collapsed || isMobile) && <span className="truncate">{s.name}</span>}
+                </button>
+              </TooltipTrigger>
+              {(collapsed && !isMobile) && <TooltipContent side="right" sideOffset={6}>{s.name}</TooltipContent>}
+            </Tooltip>
+          </li>
+        )
+      })}
+      {can(user.role, 'sheets:create' as never) && (
+        <li>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setCreateSheetOpen(true)}
+                className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] font-medium text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent/50 hover:text-white ${(collapsed && !isMobile) ? 'justify-center' : ''}`}
+              >
+                <Plus className="h-[17px] w-[17px] shrink-0" />
+                {(!collapsed || isMobile) && <span className="truncate">Create a New Sheet</span>}
+              </button>
+            </TooltipTrigger>
+            {(collapsed && !isMobile) && <TooltipContent side="right" sideOffset={6}>Create a New Sheet</TooltipContent>}
+          </Tooltip>
+        </li>
+      )}
+    </ul>
+  )
+
   // ---- shared nav list renderer (sidebar + mobile drawer) ----
   const renderNav = (isMobile = false) => (
     <nav className="nice-scroll flex-1 overflow-y-auto px-2 py-3" aria-label="Main navigation">
@@ -209,6 +279,7 @@ export default function AppShell() {
             </p>
           )}
           {collapsed && !isMobile && <div className="mx-auto my-2 h-px w-6 bg-sidebar-border" />}
+          {group.label === 'Centralized MIS' && renderSheetsBlock(isMobile)}
           <ul className="space-y-0.5">
             {group.items.map((item) => {
               const active = view === item.id
@@ -558,6 +629,7 @@ export default function AppShell() {
           <main className="nice-scroll min-h-0 flex-1 overflow-y-auto">
             {view === 'dashboard' && <DashboardView />}
             {view === 'mis' && <MisView />}
+            {view === 'sheet' && <SheetWorkspaceView />}
             {view === 'reports' && <ReportsView />}
             {view === 'excel' && <ImportExportView />}
             {view === 'audit' && <AuditView />}
@@ -565,6 +637,17 @@ export default function AppShell() {
           </main>
         </div>
       </div>
+
+      <CreateSheetDialog
+        open={createSheetOpen}
+        onOpenChange={setCreateSheetOpen}
+        sheets={sheets}
+        onCreated={(sheet) => {
+          queryClient.invalidateQueries({ queryKey: ['sheets'] })
+          setActiveSheet({ id: sheet.id, name: sheet.name, isSystem: sheet.isSystem })
+          setView(sheet.isSystem ? 'mis' : 'sheet')
+        }}
+      />
     </TooltipProvider>
   )
 }

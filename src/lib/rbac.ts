@@ -24,6 +24,9 @@ export const PERMISSIONS = {
     'users:manage',
 
     'settings:view',
+
+    // application MIS sheets — creation is ADMIN-only (never granted below)
+    'sheets:create',
   ],
 
   MANAGER: [

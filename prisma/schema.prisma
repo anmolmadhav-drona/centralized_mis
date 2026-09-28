@@ -247,3 +247,63 @@ model ImportJob {
 
   @@index([createdAt])
 }
+
+// ============================================================
+// APPLICATION SHEETS (MIS datasets) + their business-module columns
+// ------------------------------------------------------------
+// A Sheet is an application-level MIS dataset (NOT an Excel worksheet).
+// NPL is the existing system sheet: it is marked isSystem and continues to use
+// the GLOBAL MisField registry + MisRecord data (backward compatible — no data
+// migration). Sheets created in-app own their column configuration in
+// SheetColumn rows (independent copies), and start with zero transactional data.
+// ============================================================
+model Sheet {
+  id        String        @id @default(cuid())
+  name      String        @unique
+  isSystem  Boolean       @default(false) // NPL — uses the global MisField registry, not SheetColumn
+  source    String        @default("scratch") // system | scratch | import
+  createdBy String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  columns   SheetColumn[]
+  records   SheetRecord[]
+}
+
+model SheetColumn {
+  id           String   @id @default(cuid())
+  sheetId      String
+  fieldKey     String // machine key (slug), unique within the sheet
+  fieldName    String
+  displayName  String
+  dataType     String   @default("TEXT")
+  required     Boolean  @default(false)
+  defaultValue String?
+  options      String? // JSON string array — DROPDOWN choices (copied as-is)
+  position     Int      @default(0)
+  width        Float?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  sheet        Sheet    @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  @@unique([sheetId, fieldKey])
+  @@index([sheetId, position])
+}
+
+// Generic record storage for in-app sheets (NOT NPL — NPL uses MisRecord).
+// Cell values live in a JSON object keyed by SheetColumn.fieldKey, so any
+// column configuration works without per-sheet tables. Isolated by sheetId.
+model SheetRecord {
+  id        String    @id @default(cuid())
+  sheetId   String
+  data      String    @default("{}") // JSON: fieldKey -> value
+  version   Int       @default(1)
+  deletedAt DateTime?
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  sheet     Sheet     @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  @@index([sheetId, deletedAt])
+}

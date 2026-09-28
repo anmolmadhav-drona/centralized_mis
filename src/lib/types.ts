@@ -181,3 +181,38 @@ export interface DashboardData {
   vendorBreakdown: Array<{ vendor: string; qty: number; count: number }>
   pendingByParty: Array<{ party: string; destination: string; lrNo: number; qty: number; ageDays: number; expected: string | null }>
 }
+
+// ------------------------------------------------------------------
+// Application MIS Sheets (datasets)
+// ------------------------------------------------------------------
+export interface SheetDto {
+  id: string
+  name: string
+  isSystem: boolean
+  source: string // system | scratch | import
+  columnCount: number
+  createdAt: string
+}
+
+export interface SheetColumnDto {
+  id: string
+  fieldKey: string
+  fieldName: string
+  displayName: string
+  dataType: string
+  required: boolean
+  defaultValue: string | null
+  options: string[] | null
+  position: number
+  width: number | null
+  active: boolean
+}
+
+export interface SheetRecordDto {
+  id: string
+  version: number
+  data: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+  updatedBy: string | null
+}

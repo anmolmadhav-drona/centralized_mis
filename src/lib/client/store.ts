@@ -5,7 +5,13 @@
 import { create } from 'zustand'
 import type { SessionUser } from '@/lib/types'
 
-export type ViewId = 'dashboard' | 'mis' | 'reports' | 'excel' | 'audit' | 'settings'
+export type ViewId = 'dashboard' | 'mis' | 'reports' | 'excel' | 'audit' | 'settings' | 'sheet'
+
+export interface ActiveSheet {
+  id: string
+  name: string
+  isSystem: boolean
+}
 
 export interface NotificationItem {
   id: string
@@ -21,6 +27,9 @@ interface AppState {
   setUser: (u: SessionUser | null) => void
   view: ViewId
   setView: (v: ViewId) => void
+  /** the application MIS sheet currently in focus (null = default NPL) */
+  activeSheet: ActiveSheet | null
+  setActiveSheet: (s: ActiveSheet | null) => void
   sidebarCollapsed: boolean
   toggleSidebar: () => void
   mobileNavOpen: boolean
@@ -47,6 +56,8 @@ export const useAppStore = create<AppState>((set) => ({
   setUser: (u) => set({ user: u }),
   view: 'dashboard',
   setView: (v) => set({ view: v }),
+  activeSheet: null,
+  setActiveSheet: (s) => set({ activeSheet: s }),
   sidebarCollapsed: false,
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   mobileNavOpen: false,

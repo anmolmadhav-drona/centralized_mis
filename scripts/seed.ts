@@ -266,6 +266,17 @@ async function verify() {
   console.log(`LR 1301: party=${lr?.partyName}, dest=${lr?.destination}, qty=${lr?.totalQuantity}, lrDate=${lr?.lrDate?.toISOString()}`)
 }
 
+// Ensure the NPL system application sheet exists (idempotent). NPL uses the
+// global MisField registry — no SheetColumn rows. Created sheets are preserved.
+async function seedSheets() {
+  await db.sheet.upsert({
+    where: { name: 'NPL' },
+    update: {},
+    create: { id: 'sheet-npl', name: 'NPL', isSystem: true, source: 'system', createdBy: 'system' },
+  })
+  console.log('✓ NPL application sheet ensured')
+}
+
 async function main() {
   console.log('Seeding NPL MIS Portal…')
   // full reset — clean database with the original workbook data
@@ -276,6 +287,7 @@ async function main() {
   await db.importJob.deleteMany({})
   await seedUsers()
   await seedFields()
+  await seedSheets()
   const n = await seedRecords()
   await verify()
   if (n !== 340) console.warn(`⚠ expected 340 records, got ${n}`)

@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { io, type Socket } from 'socket.io-client'
 import { apiGet } from '@/lib/client/api'
 import { useAppStore } from '@/lib/client/store'
-import type { FieldDef, SessionUser } from '@/lib/types'
+import type { FieldDef, SessionUser, SheetDto } from '@/lib/types'
 
 export function useSession() {
   const setUser = useAppStore((s) => s.setUser)
@@ -25,6 +25,15 @@ export function useFields() {
   return useQuery({
     queryKey: ['fields'],
     queryFn: () => apiGet<{ fields: FieldDef[] }>('/api/fields'),
+    staleTime: 60_000,
+  })
+}
+
+/** Application MIS sheets (NPL + created) — drives sheet navigation. */
+export function useSheets() {
+  return useQuery({
+    queryKey: ['sheets'],
+    queryFn: () => apiGet<{ sheets: SheetDto[] }>('/api/sheets'),
     staleTime: 60_000,
   })
 }

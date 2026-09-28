@@ -97,6 +97,50 @@ export const importConfirmSchema = z.object({
   deletions: z.array(z.string().regex(/^[a-z0-9]{20,30}$/i)).max(5000).default([]),
 })
 
+export const sheetCreateSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(2, 'Sheet name must be at least 2 characters')
+      .max(60, 'Sheet name must be at most 60 characters'),
+    mode: z.enum(['scratch', 'import']),
+    /** create-from-scratch: the column definitions (name + order) */
+    columns: z
+      .array(z.object({ name: z.string().trim().min(1, 'Column name is required').max(60) }))
+      .max(200)
+      .optional()
+      .default([]),
+    /** import: the source Sheet to clone the business module from */
+    sourceSheetId: z.string().min(1).max(60).optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.mode === 'scratch') {
+      if (v.columns.length === 0) {
+        ctx.addIssue({ code: 'custom', path: ['columns'], message: 'Add at least one column' })
+      }
+      const seen = new Set<string>()
+      for (const c of v.columns) {
+        const key = c.name.trim().toLowerCase()
+        if (seen.has(key)) {
+          ctx.addIssue({ code: 'custom', path: ['columns'], message: `Duplicate column name: ${c.name}` })
+        }
+        seen.add(key)
+      }
+    } else if (v.mode === 'import' && !v.sourceSheetId) {
+      ctx.addIssue({ code: 'custom', path: ['sourceSheetId'], message: 'Choose a source business module' })
+    }
+  })
+
+export const sheetRecordCreateSchema = z.object({
+  data: z.record(z.string().max(80), z.unknown()).default({}),
+})
+
+export const sheetRecordUpdateSchema = z.object({
+  version: z.number().int().positive(),
+  data: z.record(z.string().max(80), z.unknown()).default({}),
+})
+
 export const userCreateSchema = z.object({
   email: z.string().email(),
   name: z.string().trim().min(2).max(80),
